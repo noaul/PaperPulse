@@ -1,5 +1,9 @@
 <template>
-  <div class="flex h-screen bg-gray-50 overflow-hidden">
+  <!-- Login page: no sidebar -->
+  <router-view v-if="!appStore.isLoggedIn" />
+
+  <!-- Main app layout -->
+  <div v-else class="flex h-screen bg-gray-50 overflow-hidden">
     <!-- Sidebar -->
     <aside
       :class="[
@@ -42,8 +46,22 @@
         </router-link>
       </nav>
 
-      <!-- Collapse Toggle -->
-      <div class="border-t border-gray-700 p-2">
+      <!-- User / Logout -->
+      <div class="border-t border-gray-700 p-2 space-y-1">
+        <div v-if="!appStore.sidebarCollapsed" class="px-3 py-1.5 text-xs text-gray-400 truncate">
+          {{ appStore.authUsername }}
+        </div>
+        <button
+          @click="handleLogout"
+          class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          title="退出登录"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span v-if="!appStore.sidebarCollapsed" class="ml-2 text-sm">退出登录</span>
+        </button>
         <button
           @click="appStore.toggleSidebar"
           class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
@@ -101,11 +119,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
 const route = useRoute()
+const router = useRouter()
 
 const currentTitle = computed(() => {
   return (route.meta.title as string) || 'PaperPulse'
@@ -113,6 +132,11 @@ const currentTitle = computed(() => {
 
 function isActive(path: string): boolean {
   return route.path === path
+}
+
+function handleLogout() {
+  appStore.logout()
+  router.push('/login')
 }
 
 const navItems = [
