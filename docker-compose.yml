@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    container_name: paperpulse
+    ports:
+      - "127.0.0.1:18095:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      - DB_PATH=/app/data/paperpulse.db
+      - STATIC_DIR=/app/static
+    restart: unless-stopped
