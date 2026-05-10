@@ -90,7 +90,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         # Allow auth endpoints and non-API paths
-        if not path.startswith("/api/") or path.startswith("/api/auth/"):
+        if not path.startswith("/api/") or path.startswith("/api/auth/") or path == "/api/health":
             return await call_next(request)
 
         # Check if admin user is registered; if not, allow all (first-time setup)
