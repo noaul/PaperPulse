@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -129,14 +129,30 @@ app.include_router(settings.router)
 app.include_router(analysis.router)
 app.include_router(dashboard.router)
 
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "version": app.version}
+
+
 # Serve frontend static files
 STATIC_DIR = os.environ.get("STATIC_DIR", "/app/static")
 if os.path.isdir(STATIC_DIR):
-    app.mount("/assets", StaticFiles(directory=f"{STATIC_DIR}/assets"), name="assets")
+    assets_dir = os.path.join(STATIC_DIR, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         file_path = os.path.join(STATIC_DIR, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
-        return FileResponse(f"{STATIC_DIR}/index.html")
+        if "." in os.path.basename(full_path):
+            raise HTTPException(status_code=404, detail="Static file not found")
+        return FileResponse(
+            f"{STATIC_DIR}/index.html",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+            },
+        )

@@ -15,21 +15,27 @@ async def list_papers(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     feed_id: Optional[int] = None,
+    journal: Optional[str] = None,
     keyword: Optional[str] = None,
     min_score: Optional[float] = None,
+    min_relevance: Optional[float] = None,
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
+    effective_min_score = min_score if min_score is not None else min_relevance
+
     # Build base query
     query = select(Paper, Feed.journal_name).outerjoin(Feed, Paper.feed_id == Feed.id)
 
     if feed_id:
         query = query.where(Paper.feed_id == feed_id)
+    if journal:
+        query = query.where(Feed.journal_name == journal)
     if search:
         query = query.where(Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%"))
 
     # If keyword or min_score filters are used, fetch a larger set and filter in Python
-    needs_post_filter = keyword or min_score is not None
+    needs_post_filter = keyword or effective_min_score is not None
     if needs_post_filter:
         # Fetch enough rows to fill multiple pages after filtering
         fetch_limit = page * page_size * 5
@@ -39,6 +45,9 @@ async def list_papers(
         count_query = select(func.count(Paper.id))
         if feed_id:
             count_query = count_query.where(Paper.feed_id == feed_id)
+        if journal:
+            count_query = count_query.select_from(Paper).outerjoin(Feed, Paper.feed_id == Feed.id)
+            count_query = count_query.where(Feed.journal_name == journal)
         if search:
             count_query = count_query.where(
                 Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%")
@@ -79,7 +88,7 @@ async def list_papers(
             if not kw_result.first():
                 continue
 
-        if min_score is not None and (po.relevance_score or 0) < min_score:
+        if effective_min_score is not None and (po.relevance_score or 0) < effective_min_score:
             continue
 
         papers.append(po)

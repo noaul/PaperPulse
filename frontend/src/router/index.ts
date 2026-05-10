@@ -45,8 +45,27 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+})
+
+router.onError((error) => {
+  const message = error?.message || ''
+  const isChunkLoadError =
+    message.includes('Failed to fetch dynamically imported module') ||
+    message.includes('Importing a module script failed') ||
+    message.includes('error loading dynamically imported module')
+
+  if (!isChunkLoadError) return
+
+  const reloadKey = 'paperpulse:chunk-reload'
+  if (sessionStorage.getItem(reloadKey) === '1') {
+    sessionStorage.removeItem(reloadKey)
+    return
+  }
+
+  sessionStorage.setItem(reloadKey, '1')
+  window.location.reload()
 })
 
 router.beforeEach((to, _from, next) => {

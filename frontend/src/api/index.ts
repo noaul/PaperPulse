@@ -1,5 +1,6 @@
 import axios from 'axios'
 import router from '@/router'
+import { useAppStore } from '@/stores/app'
 
 const api = axios.create({
   baseURL: '/api',
@@ -23,9 +24,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_username')
-      router.push('/login')
+      const appStore = useAppStore()
+      appStore.logout()
+      if (router.currentRoute.value.path !== '/login') {
+        router.push('/login')
+      }
     }
     const message = error.response?.data?.detail || error.message || '请求失败'
     return Promise.reject(new Error(message))
@@ -169,13 +172,13 @@ export interface ScheduleSettings {
 export const settingsApi = {
   getAI: () => api.get<AISettings>('/settings/ai'),
   saveAI: (data: AISettings) => api.put('/settings/ai', data),
-  testAI: () => api.post('/settings/ai/test'),
+  testAI: (data: AISettings) => api.post('/settings/ai/test', data),
   getEmail: () => api.get<EmailSettings>('/settings/email'),
   saveEmail: (data: EmailSettings) => api.put('/settings/email', data),
-  testEmail: () => api.post('/settings/email/test'),
+  testEmail: (data: EmailSettings) => api.post('/settings/email/test', data),
   getWebDAV: () => api.get<WebDAVSettings>('/settings/webdav'),
   saveWebDAV: (data: WebDAVSettings) => api.put('/settings/webdav', data),
-  testWebDAV: () => api.post('/settings/webdav/test'),
+  testWebDAV: (data: WebDAVSettings) => api.post('/settings/webdav/test', data),
   getSchedule: () => api.get<ScheduleSettings>('/settings/schedule'),
   saveSchedule: (data: ScheduleSettings) => api.put('/settings/schedule', data),
 }
