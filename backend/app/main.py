@@ -2,9 +2,10 @@ import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from .database import init_db, SessionLocal
 from .models import Setting
@@ -84,13 +85,49 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PaperPulse", version="1.0.0", lifespan=lifespan)
 
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        # Allow auth endpoints and non-API paths
+        if not path.startswith("/api/") or path.startswith("/api/auth/"):
+            return await call_next(request)
+
+        # Check if admin user is registered; if not, allow all (first-time setup)
+        async with SessionLocal() as db:
+            result = await db.execute(select(Setting).where(Setting.key == "admin_user"))
+            admin_user = result.scalar_one_or_none()
+
+            if not admin_user:
+                # No admin registered yet, allow access
+                return await call_next(request)
+
+            # Verify token
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return JSONResponse(status_code=401, content={"detail": "未登录"})
+
+            token = auth_header[7:]
+            result = await db.execute(select(Setting).where(Setting.key == "auth_token"))
+            token_row = result.scalar_one_or_none()
+
+            if not token_row or token_row.value != token:
+                return JSONResponse(status_code=401, content={"detail": "登录已过期，请重新登录"})
+
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
+
 # Routers
-from .routers import feeds, papers, keywords, settings, analysis
+from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth
+app.include_router(auth.router)
 app.include_router(feeds.router)
 app.include_router(papers.router)
 app.include_router(keywords.router)
 app.include_router(settings.router)
 app.include_router(analysis.router)
+app.include_router(dashboard.router)
 
 # Serve frontend static files
 STATIC_DIR = os.environ.get("STATIC_DIR", "/app/static")

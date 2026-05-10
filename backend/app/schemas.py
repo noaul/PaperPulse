@@ -115,7 +115,15 @@ class ScheduleConfig(BaseModel):
 class DashboardStats(BaseModel):
     total_feeds: int
     total_papers: int
-    total_keywords: int
+    total_keywords: int = 0
     today_papers: int
     today_analyses: int
     high_relevance_today: int
+
+
+class RecentPaperOut(BaseModel):
+    id: int
+    title: str
+    journal: Optional[str] = None
+    relevance_score: float = 0.0
+    published_date: Optional[str] = None

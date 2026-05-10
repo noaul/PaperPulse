@@ -5,11 +5,12 @@ from ..database import get_db
 from ..models import Paper, Feed, AnalysisResult, Keyword
 from ..schemas import PaperOut
 from typing import Optional
+import math
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
 
 
-@router.get("", response_model=list[PaperOut])
+@router.get("")
 async def list_papers(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -19,6 +20,7 @@ async def list_papers(
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
+    # Build base query
     query = select(Paper, Feed.journal_name).outerjoin(Feed, Paper.feed_id == Feed.id)
 
     if feed_id:
@@ -26,7 +28,26 @@ async def list_papers(
     if search:
         query = query.where(Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%"))
 
-    query = query.order_by(desc(Paper.fetched_at)).offset((page - 1) * page_size).limit(page_size)
+    # If keyword or min_score filters are used, fetch a larger set and filter in Python
+    needs_post_filter = keyword or min_score is not None
+    if needs_post_filter:
+        # Fetch enough rows to fill multiple pages after filtering
+        fetch_limit = page * page_size * 5
+        query = query.order_by(desc(Paper.fetched_at)).limit(fetch_limit)
+    else:
+        # Count total for simple queries
+        count_query = select(func.count(Paper.id))
+        if feed_id:
+            count_query = count_query.where(Paper.feed_id == feed_id)
+        if search:
+            count_query = count_query.where(
+                Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%")
+            )
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        query = query.order_by(desc(Paper.fetched_at)).offset((page - 1) * page_size).limit(page_size)
+
     result = await db.execute(query)
     rows = result.all()
 
@@ -63,7 +84,20 @@ async def list_papers(
 
         papers.append(po)
 
-    return papers
+    if needs_post_filter:
+        total = len(papers)
+        start = (page - 1) * page_size
+        papers = papers[start:start + page_size]
+
+    pages = max(1, math.ceil(total / page_size))
+
+    return {
+        "items": papers,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": pages,
+    }
 
 
 @router.get("/{paper_id}", response_model=PaperOut)

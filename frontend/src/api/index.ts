@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '@/router'
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,10 +9,24 @@ const api = axios.create({
   },
 })
 
+// Request interceptor: attach auth token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_username')
+      router.push('/login')
+    }
     const message = error.response?.data?.detail || error.message || '请求失败'
     return Promise.reject(new Error(message))
   }
@@ -55,17 +70,17 @@ export const feedApi = {
 export interface Paper {
   id: number
   title: string
-  authors: string
-  journal: string
-  abstract: string
-  doi: string
-  url: string
-  published_date: string
-  relevance_score: number
+  authors: string | null
+  journal_name: string | null
+  abstract: string | null
+  doi: string | null
+  url: string | null
+  published_at: string | null
+  relevance_score: number | null
   analysis_summary: string | null
-  is_read: boolean
-  created_at: string
-  feed_id: number
+  fetched_at: string | null
+  feed_id: number | null
+  category: string | null
 }
 
 export interface PaperListParams {
@@ -204,6 +219,20 @@ export const dashboardApi = {
   getStats: () => api.get<DashboardStats>('/dashboard/stats'),
   getRecentHighRelevance: (limit?: number) =>
     api.get<RecentPaper[]>('/dashboard/recent-high-relevance', { params: { limit } }),
+}
+
+// ==================== Auth ====================
+export interface LoginResponse {
+  token: string
+  username: string
+}
+
+export const authApi = {
+  check: () => api.get<{ registered: boolean }>('/auth/check'),
+  login: (username: string, password: string) =>
+    api.post<LoginResponse>('/auth/login', { username, password }),
+  register: (username: string, password: string) =>
+    api.post<LoginResponse>('/auth/register', { username, password }),
 }
 
 export default api
