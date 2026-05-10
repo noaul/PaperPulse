@@ -134,7 +134,7 @@
               scoreBadgeClass(paper.relevance_score),
             ]"
           >
-            {{ paper.relevance_score.toFixed(1) }}
+            {{ formatScore(paper.relevance_score) }}
           </span>
         </div>
       </div>
@@ -221,10 +221,15 @@ function debouncedSearch() {
   }, 400)
 }
 
-function scoreBadgeClass(score: number): string {
+function scoreBadgeClass(score: number | null): string {
+  if (typeof score !== 'number') return 'bg-gray-100 text-gray-600'
   if (score >= 7) return 'bg-green-100 text-green-800'
   if (score >= 5) return 'bg-yellow-100 text-yellow-800'
   return 'bg-red-100 text-red-800'
+}
+
+function formatScore(score: number | null): string {
+  return typeof score === 'number' ? score.toFixed(1) : '未分析'
 }
 
 const paginationRange = computed(() => {
@@ -261,7 +266,7 @@ async function loadPapers(page: number) {
     if (filters.search) params.search = filters.search
     if (filters.journal) params.journal = filters.journal
     if (filters.keyword) params.keyword = filters.keyword
-    if (filters.min_relevance) params.min_relevance = filters.min_relevance
+    if (filters.min_relevance) params.min_score = filters.min_relevance
 
     const { data } = await paperApi.list(params)
     papers.value = data.items

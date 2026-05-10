@@ -471,7 +471,7 @@ async function saveSchedule() {
 async function testAI() {
   testingAI.value = true
   try {
-    await settingsApi.testAI()
+    await settingsApi.testAI({ ...aiForm })
     appStore.success('AI 连接测试成功')
   } catch (err: any) {
     appStore.error('连接测试失败: ' + err.message)
@@ -483,7 +483,7 @@ async function testAI() {
 async function testEmail() {
   testingEmail.value = true
   try {
-    await settingsApi.testEmail()
+    await settingsApi.testEmail({ ...emailForm })
     appStore.success('测试邮件已发送')
   } catch (err: any) {
     appStore.error('发送测试邮件失败: ' + err.message)
@@ -495,7 +495,7 @@ async function testEmail() {
 async function testWebDAV() {
   testingWebDAV.value = true
   try {
-    await settingsApi.testWebDAV()
+    await settingsApi.testWebDAV({ ...webdavForm })
     appStore.success('WebDAV 连接测试成功')
   } catch (err: any) {
     appStore.error('连接测试失败: ' + err.message)
