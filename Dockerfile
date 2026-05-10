@@ -3,7 +3,7 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ .
-RUN npm run build
+RUN npx vite build --outDir dist
 
 FROM python:3.12-slim
 WORKDIR /app
