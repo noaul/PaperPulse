@@ -124,9 +124,9 @@
 - [x] 优化 Dashboard、Reports、Papers 的局部视觉层次
 - [x] 前端生产构建验证
 - [x] 本地 Docker 生产环境路由验证
-- [ ] 提交并推送 GitHub
-- [ ] nc48 拉取、重建、验证
-- **状态：** in_progress
+- [x] 提交并推送 GitHub
+- [x] nc48 拉取、重建、验证
+- **状态：** complete
 
 ## 关键问题
 1. 如何提升项目复杂度和工程化程度，同时不破坏当前功能。

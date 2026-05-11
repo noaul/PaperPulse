@@ -68,6 +68,10 @@
   - `docker compose up -d --build`：本地构建启动通过，容器 healthy。
   - `GET /api/health`：200。
   - `GET /login`、`/dashboard`、`/reports`、`/papers`、`/settings`：均返回 200。
+  - GitHub：已推送 `aa24641 feat: refresh frontend visual design` 到 `origin/main`。
+  - nc48：`/opt/PaperPulse` 已拉取 `aa24641`，`docker compose up -d --build` 完成。
+  - nc48：容器 healthy，`GET /api/health` 返回 OK。
+  - nc48：`/login`、`/dashboard`、`/reports`、`/papers`、`/settings` 均返回 200。
 
 ### 阶段 1：基线确认与重构边界
 - **状态：** complete
