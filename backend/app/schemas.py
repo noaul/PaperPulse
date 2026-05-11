@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 
 # Feed
@@ -78,6 +78,10 @@ class AnalysisOut(BaseModel):
     summary: Optional[str]
     analyzed_at: Optional[datetime]
     paper_title: Optional[str] = None
+    paper_abstract: Optional[str] = None
+    paper_authors: Optional[str] = None
+    paper_url: Optional[str] = None
+    journal_name: Optional[str] = None
     keyword_word: Optional[str] = None
     class Config:
         from_attributes = True
@@ -127,3 +131,29 @@ class RecentPaperOut(BaseModel):
     journal: Optional[str] = None
     relevance_score: float = 0.0
     published_date: Optional[str] = None
+
+
+# Workflow executions
+class WorkflowExecutionLogOut(BaseModel):
+    id: int
+    execution_id: int
+    node_name: str
+    level: str
+    message: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    created_at: Optional[datetime]
+
+
+class WorkflowExecutionOut(BaseModel):
+    id: int
+    workflow_name: str
+    status: str
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    duration_ms: Optional[int]
+    summary: dict[str, Any] = Field(default_factory=dict)
+    error_message: Optional[str] = None
+
+
+class WorkflowExecutionDetail(WorkflowExecutionOut):
+    logs: list[WorkflowExecutionLogOut] = Field(default_factory=list)

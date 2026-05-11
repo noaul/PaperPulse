@@ -2,6 +2,7 @@ import httpx
 import json
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Paper, Keyword, AnalysisResult, Setting
@@ -14,6 +15,9 @@ DEFAULT_AI_CONFIG = {
     "model": "gpt-4o-mini",
     "enabled": True,
 }
+
+AnalysisProgressCallback = Callable[[dict], Awaitable[None]]
+AnalysisControlCallback = Callable[[], Awaitable[None]]
 
 
 def build_chat_completions_url(api_base: str) -> str:
@@ -74,7 +78,14 @@ async def get_ai_config(db: AsyncSession) -> dict:
     return DEFAULT_AI_CONFIG.copy()
 
 
-async def analyze_paper(db: AsyncSession, paper: Paper, keywords: list[Keyword], config: dict) -> list[AnalysisResult]:
+async def analyze_paper(
+    db: AsyncSession,
+    paper: Paper,
+    keywords: list[Keyword],
+    config: dict,
+    *,
+    raise_errors: bool = False,
+) -> list[AnalysisResult]:
     if not config.get("api_key") or not config.get("enabled"):
         return []
 
@@ -97,6 +108,8 @@ If not relevant at all, score 0 and summary "与研究方向无关".
         data = extract_json_object(content)
     except Exception as e:
         logger.error(f"AI analysis failed for paper '{paper.title}': {e}")
+        if raise_errors:
+            raise RuntimeError(f"AI 分析失败：{paper.title[:80]} - {e}") from e
         return []
 
     results = []
@@ -121,26 +134,61 @@ If not relevant at all, score 0 and summary "与研究方向无关".
     return results
 
 
-async def analyze_new_papers(db: AsyncSession) -> list[AnalysisResult]:
+async def analyze_new_papers(
+    db: AsyncSession,
+    progress_callback: AnalysisProgressCallback | None = None,
+    control_callback: AnalysisControlCallback | None = None,
+    *,
+    paper_ids: list[int] | None = None,
+    raise_errors: bool = False,
+) -> list[AnalysisResult]:
     config = await get_ai_config(db)
     if not config.get("enabled") or not config.get("api_key"):
-        logger.info("AI analysis disabled or no API key")
+        message = "AI 未启用或 API Key 为空，请先到设置页配置 AI"
+        logger.info(message)
+        if raise_errors:
+            raise RuntimeError(message)
         return []
 
     # Get all enabled keywords
     kw_result = await db.execute(select(Keyword).where(Keyword.enabled == True))
     keywords = kw_result.scalars().all()
     if not keywords:
-        logger.info("No keywords configured")
+        message = "未配置启用的主题词，请先在关键词页面添加主题词"
+        logger.info(message)
+        if raise_errors:
+            raise RuntimeError(message)
         return []
 
-    # Get papers without analysis
-    from sqlalchemy import and_
+    # Get papers without analysis. Fetch/analyze workflows pass paper_ids so
+    # progress total tracks only the papers fetched in the current run.
     analyzed_ids = select(AnalysisResult.paper_id).distinct()
-    paper_result = await db.execute(
-        select(Paper).where(~Paper.id.in_(analyzed_ids)).order_by(Paper.fetched_at.desc()).limit(50)
-    )
-    papers = paper_result.scalars().all()
+    paper_query = select(Paper).where(~Paper.id.in_(analyzed_ids))
+    if paper_ids is not None:
+        if not paper_ids:
+            papers = []
+        else:
+            paper_query = paper_query.where(Paper.id.in_(paper_ids))
+            paper_result = await db.execute(paper_query.order_by(Paper.fetched_at.desc()))
+            papers = paper_result.scalars().all()
+    else:
+        paper_result = await db.execute(paper_query.order_by(Paper.fetched_at.desc()).limit(50))
+        papers = paper_result.scalars().all()
+
+    total = len(papers)
+    analyzed_count = 0
+    related_count = 0
+    if progress_callback:
+        await progress_callback({
+            "analysis_total": total,
+            "analysis_analyzed": analyzed_count,
+            "analysis_related": related_count,
+            "analysis_results": 0,
+            "analysis_current_title": "",
+            "literature_summary": "",
+        })
+    if control_callback:
+        await control_callback()
 
     if not papers:
         logger.info("No new papers to analyze")
@@ -148,8 +196,23 @@ async def analyze_new_papers(db: AsyncSession) -> list[AnalysisResult]:
 
     all_results = []
     for paper in papers:
-        results = await analyze_paper(db, paper, keywords, config)
+        if control_callback:
+            await control_callback()
+        results = await analyze_paper(db, paper, keywords, config, raise_errors=raise_errors)
+        if control_callback:
+            await control_callback()
         all_results.extend(results)
+        analyzed_count += 1
+        if results:
+            related_count += 1
+        if progress_callback:
+            await progress_callback({
+                "analysis_total": total,
+                "analysis_analyzed": analyzed_count,
+                "analysis_related": related_count,
+                "analysis_results": len(all_results),
+                "analysis_current_title": paper.title,
+            })
         logger.info(f"Analyzed '{paper.title}': {len(results)} matches")
 
     return all_results

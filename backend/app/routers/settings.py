@@ -1,6 +1,6 @@
 import json
-import smtplib
 import httpx
+from email.mime.text import MIMEText
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from ..database import get_db
 from ..models import Setting
 from ..schemas import AIConfig, EmailConfig, WebDAVConfig, ScheduleConfig
 from ..services.ai_analyzer import build_chat_completions_url, DEFAULT_AI_CONFIG
+from ..services.email_sender import open_smtp_connection
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -116,11 +117,15 @@ async def test_email_config(data: EmailConfig | None = None, db: AsyncSession = 
         raise HTTPException(400, f"邮件配置不完整: {', '.join(missing)}")
 
     try:
-        msg = "Subject: PaperPulse test\n\nPaperPulse email configuration test."
-        with smtplib.SMTP(config["smtp_server"], int(config.get("smtp_port", 587)), timeout=20) as server:
-            server.starttls()
+        msg = MIMEText("PaperPulse email configuration test.", "plain", "utf-8")
+        msg["Subject"] = "PaperPulse test"
+        msg["From"] = config["smtp_user"]
+        msg["To"] = config["recipient"]
+        with open_smtp_connection(config) as server:
+            if int(config.get("smtp_port", 587)) != 465:
+                server.starttls()
             server.login(config["smtp_user"], config["smtp_password"])
-            server.sendmail(config["smtp_user"], [config["recipient"]], msg.encode("utf-8"))
+            server.send_message(msg)
     except Exception as exc:
         raise HTTPException(400, f"邮件发送失败: {exc}") from exc
 
