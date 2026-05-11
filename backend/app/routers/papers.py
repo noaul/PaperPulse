@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Paper, Feed, AnalysisResult, Keyword
 from ..schemas import PaperOut
+from ..services.rss_fetcher import clean_text, normalize_paper_url
 from typing import Optional
 import math
 
@@ -63,6 +64,10 @@ async def list_papers(
     papers = []
     for paper, journal_name in rows:
         po = PaperOut.model_validate(paper)
+        po.title = clean_text(po.title)
+        po.authors = clean_text(po.authors)
+        po.abstract = clean_text(po.abstract)
+        po.url = normalize_paper_url(po.url)
         po.journal_name = journal_name
 
         # Get best analysis score
@@ -118,6 +123,10 @@ async def get_paper(paper_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "Paper not found")
     paper, journal_name = row
     po = PaperOut.model_validate(paper)
+    po.title = clean_text(po.title)
+    po.authors = clean_text(po.authors)
+    po.abstract = clean_text(po.abstract)
+    po.url = normalize_paper_url(po.url)
     po.journal_name = journal_name
     ar_result = await db.execute(
         select(AnalysisResult, Keyword.word)

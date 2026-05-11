@@ -19,34 +19,17 @@ scheduler = AsyncIOScheduler()
 
 
 async def daily_job():
-    logger.info("Running daily job: fetch + analyze + email")
+    logger.info("Running daily workflow")
     async with SessionLocal() as db:
-        from .services.rss_fetcher import fetch_all_feeds
-        from .services.ai_analyzer import analyze_new_papers
-        from .services.email_sender import send_daily_report
-        from .services.webdav_sync import get_webdav_config
+        from .workflows.daily import run_daily_workflow
 
-        papers = await fetch_all_feeds(db)
-        logger.info(f"Fetched {len(papers)} new papers")
-
-        results = await analyze_new_papers(db)
-        logger.info(f"Analyzed {len(results)} papers")
-
-        # Get threshold
-        result = await db.execute(select(Setting).where(Setting.key == "schedule_config"))
-        row = result.scalar_one_or_none()
-        threshold = 6.0
-        if row:
-            cfg = json.loads(row.value)
-            threshold = cfg.get("relevance_threshold", 6.0)
-
-        await send_daily_report(db, threshold=threshold)
-
-        # Auto WebDAV export if configured
-        wdc = await get_webdav_config(db)
-        if wdc.get("url"):
-            from .services.webdav_sync import export_data
-            await export_data(db)
+        execution = await run_daily_workflow(db)
+        logger.info(
+            "Daily workflow finished: id=%s status=%s summary=%s",
+            execution.id,
+            execution.status,
+            execution.summary_json,
+        )
 
 
 def _get_schedule_config_sync():
@@ -120,7 +103,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 
 # Routers
-from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth
+from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows
 app.include_router(auth.router)
 app.include_router(feeds.router)
 app.include_router(papers.router)
@@ -128,6 +111,8 @@ app.include_router(keywords.router)
 app.include_router(settings.router)
 app.include_router(analysis.router)
 app.include_router(dashboard.router)
+app.include_router(executions.router)
+app.include_router(workflows.router)
 
 
 @app.get("/api/health")

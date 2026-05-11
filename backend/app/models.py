@@ -1,3 +1,4 @@
+import json
 from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -52,6 +53,45 @@ class AnalysisResult(Base):
     analyzed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     paper = relationship("Paper", back_populates="analyses")
     keyword = relationship("Keyword", back_populates="analyses")
+
+
+class WorkflowExecution(Base):
+    __tablename__ = "workflow_executions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workflow_name = Column(String(255), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    finished_at = Column(DateTime)
+    duration_ms = Column(Integer)
+    summary_json = Column(Text, default="{}")
+    error_message = Column(Text)
+    logs = relationship("WorkflowExecutionLog", back_populates="execution", cascade="all, delete-orphan")
+
+    @property
+    def summary_dict(self) -> dict:
+        try:
+            return json.loads(self.summary_json or "{}")
+        except json.JSONDecodeError:
+            return {}
+
+
+class WorkflowExecutionLog(Base):
+    __tablename__ = "workflow_execution_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    execution_id = Column(Integer, ForeignKey("workflow_executions.id", ondelete="CASCADE"), nullable=False, index=True)
+    node_name = Column(String(255), nullable=False)
+    level = Column(String(50), nullable=False, default="info")
+    message = Column(Text, nullable=False)
+    data_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    execution = relationship("WorkflowExecution", back_populates="logs")
+
+    @property
+    def data_dict(self) -> dict:
+        try:
+            return json.loads(self.data_json or "{}")
+        except json.JSONDecodeError:
+            return {}
 
 
 class Setting(Base):

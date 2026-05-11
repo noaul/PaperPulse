@@ -27,7 +27,7 @@
       <div class="flex flex-wrap gap-3">
         <button
           @click="fetchAll"
-          :disabled="actionLoading"
+          :disabled="actionLoading || analysisRunning"
           class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -38,7 +38,7 @@
         </button>
         <button
           @click="runAnalysis"
-          :disabled="actionLoading"
+          :disabled="actionLoading || analysisRunning"
           class="inline-flex items-center px-4 py-2.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -60,7 +60,7 @@
         </button>
         <button
           @click="fetchAndAnalyze"
-          :disabled="actionLoading"
+          :disabled="actionLoading || analysisRunning"
           class="inline-flex items-center px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -69,6 +69,198 @@
           </svg>
           一键抓取并分析
         </button>
+        <button
+          @click="runDailyWorkflow"
+          :disabled="actionLoading || analysisRunning"
+          class="inline-flex items-center px-4 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l.928 2.856a2 2 0 001.265 1.265l2.856.928c.921.3.921 1.603 0 1.902l-2.856.928a2 2 0 00-1.265 1.265l-.928 2.856c-.3.921-1.603.921-1.902 0l-.928-2.856a2 2 0 00-1.265-1.265L6 9.878c-.921-.3-.921-1.603 0-1.902l2.856-.928a2 2 0 001.265-1.265l.928-2.856z" />
+          </svg>
+          运行完整工作流
+        </button>
+      </div>
+    </div>
+
+    <!-- Analysis Progress -->
+    <div v-if="analysisProgressExecution" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-800">文献汇总分析进度</h2>
+          <p class="text-sm text-gray-500 mt-1">
+            {{ workflowLabel(analysisProgressExecution.workflow_name) }} · {{ statusText(analysisProgressExecution.status) }}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span :class="['px-3 py-1 rounded-full text-sm font-medium', statusBadgeClass(analysisProgressExecution.status)]">
+            {{ analysisProgressPercent }}%
+          </span>
+          <button
+            v-if="analysisProgressExecution.status === 'running'"
+            @click="pauseAnalysisExecution"
+            :disabled="controlLoading"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:opacity-50"
+          >
+            暂停
+          </button>
+          <button
+            v-if="analysisProgressExecution.status === 'paused'"
+            @click="resumeAnalysisExecution"
+            :disabled="controlLoading"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 disabled:opacity-50"
+          >
+            继续
+          </button>
+          <button
+            v-if="['running', 'paused'].includes(analysisProgressExecution.status)"
+            @click="cancelAnalysisExecution"
+            :disabled="controlLoading"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-100 text-red-800 hover:bg-red-200 disabled:opacity-50"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+
+      <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          class="h-full bg-blue-600 transition-all duration-500"
+          :style="{ width: `${analysisProgressPercent}%` }"
+        ></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div class="rounded-lg bg-blue-50 p-4">
+          <p class="text-xs text-blue-600">已分析 / 总数</p>
+          <p class="text-2xl font-semibold text-blue-900 mt-1">
+            {{ analysisProgress.analyzed }} / {{ analysisProgress.total }}
+          </p>
+        </div>
+        <div class="rounded-lg bg-green-50 p-4">
+          <p class="text-xs text-green-600">和主题词相关</p>
+          <p class="text-2xl font-semibold text-green-900 mt-1">
+            {{ analysisProgress.related }}
+          </p>
+        </div>
+        <div class="rounded-lg bg-purple-50 p-4">
+          <p class="text-xs text-purple-600">相关分析结果</p>
+          <p class="text-2xl font-semibold text-purple-900 mt-1">
+            {{ analysisProgress.results }}
+          </p>
+        </div>
+      </div>
+
+      <p v-if="analysisProgress.currentTitle && analysisProgressExecution.status === 'running'" class="text-sm text-gray-500 mt-4 truncate">
+        正在分析：{{ analysisProgress.currentTitle }}
+      </p>
+      <p v-if="analysisProgress.summary" class="text-sm text-gray-700 mt-4 rounded-lg bg-gray-50 p-3">
+        {{ analysisProgress.summary }}
+      </p>
+      <p v-if="analysisProgressExecution.error_message" class="text-sm text-red-600 mt-4 rounded-lg bg-red-50 p-3">
+        {{ analysisProgressExecution.error_message }}
+      </p>
+    </div>
+
+    <!-- Workflow Executions -->
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-800">工作流执行记录</h2>
+            <p class="text-sm text-gray-500 mt-1">抓取、AI 分析、邮件和 WebDAV 备份的可观测日志</p>
+          </div>
+          <button
+            @click="loadExecutions(true)"
+            :disabled="executionsLoading"
+            class="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
+          >
+            刷新
+          </button>
+        </div>
+
+        <div v-if="executionsLoading" class="flex justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+
+        <div v-else-if="executions.length === 0" class="text-center py-8 text-gray-500">
+          暂无执行记录，点击上方快速操作后会生成日志
+        </div>
+
+        <div v-else class="space-y-3">
+          <button
+            v-for="execution in executions"
+            :key="execution.id"
+            @click="loadExecutionDetail(execution.id)"
+            class="w-full text-left p-4 rounded-lg border transition-colors"
+            :class="selectedExecution?.id === execution.id ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold text-gray-800">{{ workflowLabel(execution.workflow_name) }}</span>
+                  <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', statusBadgeClass(execution.status)]">
+                    {{ statusText(execution.status) }}
+                  </span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  #{{ execution.id }} · {{ formatDateTime(execution.started_at) }} · {{ formatDuration(execution.duration_ms) }}
+                </p>
+                <p class="text-xs text-gray-600 mt-2 truncate">
+                  {{ summaryText(execution.summary) }}
+                </p>
+              </div>
+              <span class="text-xs text-gray-400 flex-shrink-0">查看日志</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">执行详情</h2>
+
+        <div v-if="detailLoading" class="flex justify-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+
+        <div v-else-if="!selectedExecution" class="text-sm text-gray-500 py-8 text-center">
+          选择一条执行记录查看节点日志
+        </div>
+
+        <div v-else class="space-y-4">
+          <div class="rounded-lg bg-gray-50 p-4">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-gray-800">{{ workflowLabel(selectedExecution.workflow_name) }}</span>
+              <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', statusBadgeClass(selectedExecution.status)]">
+                {{ statusText(selectedExecution.status) }}
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">{{ formatDateTime(selectedExecution.started_at) }}</p>
+            <p v-if="selectedExecution.error_message" class="text-xs text-red-600 mt-2">
+              {{ selectedExecution.error_message }}
+            </p>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-medium text-gray-700 mb-2">节点日志</h3>
+            <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+              <div
+                v-for="log in selectedExecution.logs"
+                :key="log.id"
+                class="rounded-lg border border-gray-100 p-3"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-semibold text-gray-700">{{ log.node_name }}</span>
+                  <span :class="['px-2 py-0.5 rounded-full text-[11px] font-medium', logLevelClass(log.level)]">
+                    {{ log.level }}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700 mt-1">{{ log.message }}</p>
+                <p class="text-[11px] text-gray-400 mt-1">{{ formatDateTime(log.created_at) }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -116,9 +308,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { dashboardApi, analysisApi } from '@/api'
-import type { DashboardStats, RecentPaper } from '@/api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { dashboardApi, analysisApi, executionApi, workflowApi } from '@/api'
+import type { DashboardStats, RecentPaper, WorkflowExecution, WorkflowExecutionDetail } from '@/api'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -131,9 +323,16 @@ const stats = ref<DashboardStats>({
   high_relevance_today: 0,
 })
 const recentPapers = ref<RecentPaper[]>([])
+const executions = ref<WorkflowExecution[]>([])
+const selectedExecution = ref<WorkflowExecutionDetail | null>(null)
+const activeAnalysisExecution = ref<WorkflowExecutionDetail | null>(null)
 const statsLoading = ref(true)
 const papersLoading = ref(true)
+const executionsLoading = ref(true)
+const detailLoading = ref(false)
 const actionLoading = ref(false)
+const controlLoading = ref(false)
+let progressTimer: ReturnType<typeof setInterval> | null = null
 
 const statsCards = computed(() => [
   {
@@ -173,10 +372,106 @@ const statsCards = computed(() => [
   },
 ])
 
+const analysisProgressExecution = computed(() => {
+  if (activeAnalysisExecution.value) return activeAnalysisExecution.value
+  if (selectedExecution.value && hasAnalysisProgress(selectedExecution.value.summary)) {
+    return selectedExecution.value
+  }
+  return executions.value.find((item) => hasAnalysisProgress(item.summary)) || null
+})
+
+const analysisProgress = computed(() => {
+  const summary = analysisProgressExecution.value?.summary || {}
+  return {
+    total: Number(summary.analysis_total || 0),
+    analyzed: Number(summary.analysis_analyzed || summary.analyzed || 0),
+    related: Number(summary.analysis_related || 0),
+    results: Number(summary.analysis_results || summary.analyses || 0),
+    currentTitle: String(summary.analysis_current_title || ''),
+    summary: String(summary.literature_summary || ''),
+  }
+})
+
+const analysisProgressPercent = computed(() => {
+  const total = analysisProgress.value.total
+  const analyzed = analysisProgress.value.analyzed
+  if (total <= 0) {
+    return analysisProgressExecution.value?.status === 'success' ? 100 : 0
+  }
+  return Math.min(100, Math.round((analyzed / total) * 100))
+})
+
+const analysisRunning = computed(() => {
+  const status = analysisProgressExecution.value?.status
+  return status === 'running' || status === 'paused'
+})
+
+function hasAnalysisProgress(summary: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(summary, 'analysis_total')
+}
+
 function scoreBadgeClass(score: number): string {
   if (score >= 7) return 'bg-green-100 text-green-800'
   if (score >= 5) return 'bg-yellow-100 text-yellow-800'
   return 'bg-red-100 text-red-800'
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === 'success') return 'bg-green-100 text-green-800'
+  if (status === 'failed') return 'bg-red-100 text-red-800'
+  if (status === 'cancelled') return 'bg-gray-200 text-gray-700'
+  if (status === 'paused') return 'bg-yellow-100 text-yellow-800'
+  if (status === 'running') return 'bg-blue-100 text-blue-800'
+  return 'bg-gray-100 text-gray-700'
+}
+
+function logLevelClass(level: string): string {
+  if (level === 'error') return 'bg-red-100 text-red-800'
+  if (level === 'warning') return 'bg-yellow-100 text-yellow-800'
+  return 'bg-gray-100 text-gray-700'
+}
+
+function statusText(status: string): string {
+  const labels: Record<string, string> = {
+    pending: '等待中',
+    running: '运行中',
+    paused: '已暂停',
+    cancelled: '已取消',
+    success: '成功',
+    failed: '失败',
+  }
+  return labels[status] || status
+}
+
+function workflowLabel(name: string): string {
+  const labels: Record<string, string> = {
+    'manual-analysis': '手动 AI 分析',
+    'manual-fetch-analyze': '手动抓取并分析',
+    'manual-send-report': '手动发送报告',
+    'daily-paperpulse': '每日完整工作流',
+  }
+  return labels[name] || name
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null || value === undefined) return '-'
+  if (value < 1000) return `${value}ms`
+  return `${(value / 1000).toFixed(1)}s`
+}
+
+function summaryText(summary: Record<string, unknown>): string {
+  const parts = [
+    typeof summary.new_papers === 'number' ? `新增论文 ${summary.new_papers}` : '',
+    typeof summary.analyses === 'number' ? `分析结果 ${summary.analyses}` : '',
+    typeof summary.email_sent === 'boolean' ? `邮件${summary.email_sent ? '已发送' : '未发送'}` : '',
+    typeof summary.webdav_exported === 'boolean' ? `WebDAV${summary.webdav_exported ? '已备份' : '未备份'}` : '',
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : '无摘要'
 }
 
 async function loadStats() {
@@ -203,13 +498,122 @@ async function loadRecentPapers() {
   }
 }
 
+async function loadExecutions(selectFirst = false) {
+  executionsLoading.value = true
+  try {
+    const { data } = await executionApi.list({ limit: 8 })
+    executions.value = data
+    if (selectFirst && data.length > 0) {
+      await loadExecutionDetail(data[0].id)
+    } else if (selectedExecution.value && !data.some((item) => item.id === selectedExecution.value?.id)) {
+      selectedExecution.value = null
+    }
+  } catch (err: any) {
+    appStore.error('加载执行记录失败: ' + err.message)
+  } finally {
+    executionsLoading.value = false
+  }
+}
+
+async function loadExecutionDetail(id: number, silent = false) {
+  if (!silent) detailLoading.value = true
+  try {
+    const { data } = await executionApi.get(id)
+    selectedExecution.value = data
+    if (hasAnalysisProgress(data.summary)) {
+      activeAnalysisExecution.value = data
+      if (data.status === 'running' || data.status === 'paused') {
+        startProgressPolling(data.id)
+      }
+    }
+  } catch (err: any) {
+    appStore.error('加载执行日志失败: ' + err.message)
+  } finally {
+    if (!silent) detailLoading.value = false
+  }
+}
+
+function stopProgressPolling() {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
+
+function startProgressPolling(executionId: number) {
+  stopProgressPolling()
+  progressTimer = setInterval(async () => {
+    try {
+      const { data } = await executionApi.get(executionId)
+      selectedExecution.value = data
+      activeAnalysisExecution.value = data
+      if (data.status !== 'running' && data.status !== 'paused') {
+        stopProgressPolling()
+        await loadStats()
+        await loadRecentPapers()
+        await loadExecutions(false)
+        if (data.status === 'failed') {
+          appStore.error(data.error_message || '分析失败')
+        } else if (data.status === 'cancelled') {
+          appStore.warning('文献汇总分析已取消')
+        } else {
+          appStore.success('文献汇总分析完成')
+        }
+      }
+    } catch (err: any) {
+      stopProgressPolling()
+      appStore.error('刷新分析进度失败: ' + err.message)
+    }
+  }, 2000)
+}
+
+async function controlAnalysisExecution(action: 'pause' | 'resume' | 'cancel') {
+  const id = analysisProgressExecution.value?.id
+  if (!id) return
+  controlLoading.value = true
+  try {
+    if (action === 'pause') {
+      await executionApi.pause(id)
+      appStore.warning('已发送暂停请求，当前论文处理完后暂停')
+    } else if (action === 'resume') {
+      await executionApi.resume(id)
+      appStore.success('文献汇总分析已继续')
+      startProgressPolling(id)
+    } else {
+      await executionApi.cancel(id)
+      appStore.warning('已发送取消请求')
+    }
+    await loadExecutionDetail(id, true)
+    await loadExecutions(false)
+  } catch (err: any) {
+    appStore.error('控制分析任务失败: ' + err.message)
+  } finally {
+    controlLoading.value = false
+  }
+}
+
+function pauseAnalysisExecution() {
+  controlAnalysisExecution('pause')
+}
+
+function resumeAnalysisExecution() {
+  controlAnalysisExecution('resume')
+}
+
+function cancelAnalysisExecution() {
+  controlAnalysisExecution('cancel')
+}
+
 async function fetchAll() {
   actionLoading.value = true
   try {
-    await analysisApi.fetchAndAnalyze()
-    appStore.success('抓取并分析完成')
-    await loadStats()
-    await loadRecentPapers()
+    const { data } = await analysisApi.fetchAndAnalyzeBackground()
+    appStore.success('抓取并分析已开始')
+    await loadExecutions(true)
+    if (data.execution_id) {
+      await loadExecutionDetail(data.execution_id)
+      startProgressPolling(data.execution_id)
+    }
   } catch (err: any) {
     appStore.error('操作失败: ' + err.message)
   } finally {
@@ -220,10 +624,13 @@ async function fetchAll() {
 async function runAnalysis() {
   actionLoading.value = true
   try {
-    await analysisApi.run()
-    appStore.success('分析完成')
-    await loadStats()
-    await loadRecentPapers()
+    const { data } = await analysisApi.runBackground()
+    appStore.success('文献汇总分析已开始')
+    await loadExecutions(true)
+    if (data.execution_id) {
+      await loadExecutionDetail(data.execution_id)
+      startProgressPolling(data.execution_id)
+    }
   } catch (err: any) {
     appStore.error('分析失败: ' + err.message)
   } finally {
@@ -234,8 +641,13 @@ async function runAnalysis() {
 async function sendReport() {
   actionLoading.value = true
   try {
-    await analysisApi.sendReport()
-    appStore.success('报告已发送')
+    const { data } = await analysisApi.sendReport()
+    if (data.success) {
+      appStore.success('报告已发送')
+    } else {
+      appStore.warning(data.message || '报告未发送：请检查邮件配置或是否有符合条件的论文')
+    }
+    await loadExecutions(true)
   } catch (err: any) {
     appStore.error('发送报告失败: ' + err.message)
   } finally {
@@ -246,12 +658,33 @@ async function sendReport() {
 async function fetchAndAnalyze() {
   actionLoading.value = true
   try {
-    await analysisApi.fetchAndAnalyze()
-    appStore.success('抓取并分析完成')
-    await loadStats()
-    await loadRecentPapers()
+    const { data } = await analysisApi.fetchAndAnalyzeBackground()
+    appStore.success('抓取并分析已开始')
+    await loadExecutions(true)
+    if (data.execution_id) {
+      await loadExecutionDetail(data.execution_id)
+      startProgressPolling(data.execution_id)
+    }
   } catch (err: any) {
     appStore.error('操作失败: ' + err.message)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function runDailyWorkflow() {
+  actionLoading.value = true
+  try {
+    const { data } = await workflowApi.runDaily()
+    appStore.success(data.success ? '完整工作流运行完成' : '完整工作流运行失败')
+    await loadStats()
+    await loadRecentPapers()
+    await loadExecutions(true)
+    if (data.execution_id) {
+      await loadExecutionDetail(data.execution_id)
+    }
+  } catch (err: any) {
+    appStore.error('完整工作流失败: ' + err.message)
   } finally {
     actionLoading.value = false
   }
@@ -260,5 +693,10 @@ async function fetchAndAnalyze() {
 onMounted(() => {
   loadStats()
   loadRecentPapers()
+  loadExecutions(true)
+})
+
+onUnmounted(() => {
+  stopProgressPolling()
 })
 </script>

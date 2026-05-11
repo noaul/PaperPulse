@@ -187,17 +187,25 @@ export const settingsApi = {
 export interface Analysis {
   id: number
   paper_id: number
+  keyword_id: number
   paper_title: string
+  paper_abstract: string | null
+  paper_authors: string | null
+  paper_url: string | null
+  journal_name: string | null
+  keyword_word: string
   relevance_score: number
   summary: string
-  created_at: string
+  analyzed_at: string
 }
 
 export const analysisApi = {
-  list: (params?: { page?: number; page_size?: number }) =>
+  list: (params?: { page?: number; page_size?: number; min_score?: number }) =>
     api.get<PaginatedResponse<Analysis>>('/analysis', { params }),
   run: () => api.post('/analysis/run'),
+  runBackground: () => api.post('/analysis/run-background'),
   fetchAndAnalyze: () => api.post('/analysis/fetch-and-analyze'),
+  fetchAndAnalyzeBackground: () => api.post('/analysis/fetch-and-analyze-background'),
   sendReport: () => api.post('/analysis/send-report'),
 }
 
@@ -222,6 +230,46 @@ export const dashboardApi = {
   getStats: () => api.get<DashboardStats>('/dashboard/stats'),
   getRecentHighRelevance: (limit?: number) =>
     api.get<RecentPaper[]>('/dashboard/recent-high-relevance', { params: { limit } }),
+}
+
+// ==================== Workflow Executions ====================
+export interface WorkflowExecutionLog {
+  id: number
+  execution_id: number
+  node_name: string
+  level: 'info' | 'warning' | 'error' | string
+  message: string
+  data: Record<string, unknown>
+  created_at: string
+}
+
+export interface WorkflowExecution {
+  id: number
+  workflow_name: string
+  status: 'pending' | 'running' | 'paused' | 'cancelled' | 'success' | 'failed' | string
+  started_at: string | null
+  finished_at: string | null
+  duration_ms: number | null
+  summary: Record<string, unknown>
+  error_message: string | null
+}
+
+export interface WorkflowExecutionDetail extends WorkflowExecution {
+  logs: WorkflowExecutionLog[]
+}
+
+export const executionApi = {
+  list: (params?: { limit?: number; status?: string }) =>
+    api.get<WorkflowExecution[]>('/executions', { params }),
+  get: (id: number) => api.get<WorkflowExecutionDetail>(`/executions/${id}`),
+  logs: (id: number) => api.get<WorkflowExecutionLog[]>(`/executions/${id}/logs`),
+  pause: (id: number) => api.post<WorkflowExecution>(`/executions/${id}/pause`),
+  resume: (id: number) => api.post<WorkflowExecution>(`/executions/${id}/resume`),
+  cancel: (id: number) => api.post<WorkflowExecution>(`/executions/${id}/cancel`),
+}
+
+export const workflowApi = {
+  runDaily: () => api.post('/workflows/daily/run'),
 }
 
 // ==================== Auth ====================
