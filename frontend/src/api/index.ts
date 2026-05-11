@@ -143,6 +143,7 @@ export interface AISettings {
   api_base: string
   api_key: string
   model: string
+  reasoning_effort: string
   enabled: boolean
 }
 

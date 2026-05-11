@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Setting
 from ..schemas import AIConfig, EmailConfig, WebDAVConfig, ScheduleConfig
-from ..services.ai_analyzer import build_chat_completions_url, DEFAULT_AI_CONFIG
+from ..services.ai_analyzer import build_ai_request, DEFAULT_AI_CONFIG
 from ..services.email_sender import open_smtp_connection
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -84,7 +84,12 @@ async def test_ai_config(data: AIConfig | None = None, db: AsyncSession = Depend
         raise HTTPException(400, "模型名称为空")
 
     try:
-        url = build_chat_completions_url(config.get("api_base", ""))
+        url, payload = build_ai_request(
+            config,
+            [{"role": "user", "content": "Reply OK"}],
+            max_tokens=8,
+            temperature=0,
+        )
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(
                 url,
@@ -92,12 +97,7 @@ async def test_ai_config(data: AIConfig | None = None, db: AsyncSession = Depend
                     "Authorization": f"Bearer {config['api_key']}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": config.get("model", DEFAULT_AI_CONFIG["model"]),
-                    "messages": [{"role": "user", "content": "Reply OK"}],
-                    "temperature": 0,
-                    "max_tokens": 8,
-                },
+                json=payload,
             )
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
