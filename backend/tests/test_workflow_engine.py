@@ -148,6 +148,44 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
         finally:
             ai_analyzer.request_chat_completion = original_request
 
+    async def test_analyze_new_papers_without_targets_analyzes_all_pending_papers(self):
+        original_request = ai_analyzer.request_chat_completion
+
+        async def fake_request_chat_completion(config, messages, max_tokens=500):
+            return '{"relevance_score": 7, "matched_keywords": ["battery"], "summary": "相关"}'
+
+        ai_analyzer.request_chat_completion = fake_request_chat_completion
+        try:
+            async with SessionLocal() as db:
+                db.add(Setting(
+                    key="ai_config",
+                    value=json.dumps({"enabled": True, "api_key": "test-key", "api_base": "http://ai.test"}),
+                ))
+                db.add(Keyword(word="battery", enabled=True))
+                papers = [
+                    Paper(title=f"Pending paper {idx}", url=f"https://example.com/pending-{idx}")
+                    for idx in range(55)
+                ]
+                db.add_all(papers)
+                await db.commit()
+
+                progress_events = []
+
+                async def on_progress(progress):
+                    progress_events.append(progress)
+
+                results = await analyze_new_papers(
+                    db,
+                    progress_callback=on_progress,
+                    raise_errors=True,
+                )
+
+                self.assertEqual(55, len(results))
+                self.assertEqual(55, progress_events[0]["analysis_total"])
+                self.assertEqual(55, progress_events[-1]["analysis_analyzed"])
+        finally:
+            ai_analyzer.request_chat_completion = original_request
+
     async def test_ai_analyze_node_passes_fetched_paper_ids_to_analyzer(self):
         original_analyze = ai_analyze_node_module.analyze_new_papers
         captured = {}
