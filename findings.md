@@ -23,6 +23,14 @@
 - ScienceDirect RSS 原文链接会带 `dgcid=rss_sd_all` 跟踪参数；论文入库、列表输出、分析输出、邮件链接需要统一做 URL 归一化，移除 `dgcid`/`utm_*` 等跟踪参数，同时保留正常业务查询参数。
 - 文献抓取+分析场景下，用户期望进度“总数”表示本次新抓取论文数，而不是数据库里全部待分析论文数；因此 workflow 需要把抓取节点产出的论文 ID 传给分析节点。
 - 分析暂停/取消只能做协作式控制：正在进行的单篇 AI HTTP 请求不能安全中断，但可以在每篇论文前后检查控制状态；暂停时后台任务等待，取消时停止后续论文并将执行记录标记为 `cancelled`。
+- 2026-05-11 再次盘点：当前远端已是最新，工作区干净，当前本地最新提交为 `2ad5ec5 docs: add project planning notes`。
+- 当前仓库中 `task_plan.md`、`findings.md`、`progress.md` 已被 Git 跟踪，和备注“不应进入最终提交”不一致；本轮继续维护这些文件作为项目工作台，不做无关清理。
+- 后端当前架构：FastAPI + SQLAlchemy async + SQLite + APScheduler + workflow engine；核心模型有 Feed、Paper、Keyword、AnalysisResult、WorkflowExecution、WorkflowExecutionLog、Setting。
+- 前端当前架构：Vue 3 + Vue Router + Pinia + Axios + Tailwind；页面有 Dashboard、Feeds、Papers、Analysis、Keywords、Settings、Login。
+- 当前没有前端测试脚本；后端测试是 unittest，测试文件位于 `backend/tests`，Docker 镜像内依赖环境更完整。
+- `backend/static` 中存在构建产物，当前 `.gitignore` 未忽略 `backend/static`；如果继续提交构建产物，需要明确这是项目发布策略，否则建议后续规范化。
+- 当前数据库结构仍依赖 `Base.metadata.create_all`，未引入 Alembic；后续新增报告中心、任务队列、知识库同步会让迁移管理成为工程化升级的关键点。
+- 阶段 10 的“报告中心与 WeKnora 联动”仍未实现，是全面升级中最自然的第一批高价值功能。
 
 ## 技术决策
 | 决策 | 理由 |
@@ -63,6 +71,21 @@
 3. **摘要增强服务**：解决 RSS 只有元信息、没有真实 abstract 的问题。
 4. **工作流运行页**：把当前 Dashboard 里的工作流信息独立出来，提升工程化观感。
 5. **AI 文献综述**：在报告中心稳定后做，可以生成真正的“文献汇总报告”。
+
+## 全面升级候选路线图（阶段 13）
+
+| 模块 | 目标 | 价值 | 复杂度 | 建议批次 |
+|------|------|------|--------|----------|
+| 报告中心 | 保存每日/手动报告，支持预览、查看、重发、Markdown 导出 | 高 | M | P0 |
+| 邮件投递记录 | 记录每次发送内容、收件人、状态、错误、重试入口 | 高 | M | P0 |
+| 数据库迁移 | 引入 Alembic 或等价迁移层，管理 SQLite schema 演进 | 高 | M | P0/P1 |
+| 工作流运行页 | 独立页面展示 executions、日志筛选、重试、取消 | 中高 | M | P1 |
+| 摘要增强 | 对 RSS 摘要不足的论文补充 Crossref/OpenAlex/页面元数据 | 高 | M-L | P1 |
+| 分析增强 | 分析结果搜索、批量导出、按期刊/关键词/时间聚合 | 中高 | S-M | P1 |
+| AI 文献综述 | 基于当日报告/主题生成综述与趋势总结 | 高 | L | P2 |
+| WeKnora 同步 | 将报告和高相关论文以 Markdown 同步到知识库 | 中高 | M-L | P2 |
+| RAG/语义检索 | 对历史论文和报告做向量检索/问答 | 高 | L-XL | P3 |
+| 多用户/权限 | 用户级订阅源、关键词、报告隔离 | 中 | L | P3 |
 
 ## 遇到的问题
 | 问题 | 解决方案 |

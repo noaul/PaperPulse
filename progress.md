@@ -2,6 +2,24 @@
 
 ## 会话：2026-05-11
 
+### 阶段 13：全面升级规划与第一批实施范围
+- **状态：** in_progress
+- 用户请求：
+  - “现在开始这个项目，这个项目需要全面升级”
+- 已执行：
+  - 使用 `brainstorm` 做需求发现和路线拆分。
+  - 使用 `planning-with-files-zh` 恢复并维护 `task_plan.md/findings.md/progress.md`。
+  - 确认本地仓库 `C:\Users\aodo\PaperPulse` 已存在，远端 `git pull --ff-only` 后已是最新。
+  - 读取 README、Dockerfile、docker-compose、前后端依赖、后端模型/API、前端路由/API。
+  - 确认当前代码已有 workflow engine、执行记录、分析结果页、暂停/继续/取消和 nc48 部署记录。
+  - 将阶段 13 写入计划文件，并补充全面升级候选路线图。
+- 当前判断：
+  - 不建议直接无边界重写；应按 P0/P1/P2/P3 分批升级。
+  - 第一批最稳的升级是“报告中心 + 邮件投递记录 + 数据库迁移基础”，因为它延续现有分析/邮件/workflow 闭环。
+- 待用户确认：
+  - 是否按推荐 P0 批次开始实现。
+  - 是否允许先创建 git worktree 隔离实现分支。
+
 ### 阶段 1：基线确认与重构边界
 - **状态：** complete
 - **开始时间：** 2026-05-11
