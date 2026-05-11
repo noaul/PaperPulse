@@ -67,7 +67,7 @@
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
             <h3
-              class="text-base font-medium text-gray-900 cursor-pointer hover:text-blue-600"
+              class="text-base font-semibold text-gray-900 cursor-pointer hover:text-blue-600 leading-6"
               @click="toggleExpand(paper)"
             >
               {{ paper.title }}

@@ -1,6 +1,7 @@
 <template>
   <div class="space-y-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 overflow-hidden relative">
+      <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-green-500 to-amber-500"></div>
       <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-800">生成报告</h2>
@@ -61,7 +62,7 @@
             :key="report.id"
             @click="loadReportDetail(report.id)"
             class="w-full text-left p-4 rounded-lg border transition-colors"
-            :class="selectedReport?.id === report.id ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'"
+            :class="selectedReport?.id === report.id ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-gray-100 hover:bg-gray-50'"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -92,7 +93,7 @@
         </div>
       </div>
 
-      <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+      <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-5 min-h-[520px]">
         <div v-if="detailLoading" class="flex justify-center py-16">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
