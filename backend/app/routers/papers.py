@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Paper, Feed, AnalysisResult, Keyword
 from ..schemas import PaperOut
 from ..services.rss_fetcher import clean_text, normalize_paper_url
+from ..services.weknora_sync import sync_paper_to_weknora
 from typing import Optional
 import math
 
@@ -140,3 +141,20 @@ async def get_paper(paper_id: int, db: AsyncSession = Depends(get_db)):
         po.relevance_score = ar_row[0].relevance_score
         po.analysis_summary = ar_row[0].summary
     return po
+
+
+@router.post("/{paper_id}/sync-weknora")
+async def sync_paper_weknora(paper_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        sync = await sync_paper_to_weknora(db, paper_id)
+    except ValueError:
+        raise HTTPException(404, "Paper not found")
+    if not sync:
+        return {"success": True, "synced": False, "reason": "WeKnora 未启用或论文未达到同步阈值"}
+    return {
+        "success": sync.status == "success",
+        "synced": sync.status == "success",
+        "status": sync.status,
+        "weknora_knowledge_id": sync.weknora_knowledge_id,
+        "error_message": sync.error_message,
+    }

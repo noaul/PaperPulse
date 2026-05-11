@@ -3,13 +3,13 @@
     <!-- Tab Navigation -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200">
       <div class="border-b border-gray-200">
-        <nav class="flex -mb-px px-6">
+        <nav class="flex -mb-px px-6 overflow-x-auto">
           <button
             v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id"
             :class="[
-              'py-4 px-6 text-sm font-medium border-b-2 transition-colors',
+              'py-4 px-6 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
               activeTab === tab.id
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
@@ -278,6 +278,96 @@
           </div>
         </div>
 
+        <!-- WeKnora Config Tab -->
+        <div v-if="activeTab === 'weknora'" class="space-y-4">
+          <h3 class="text-base font-semibold text-gray-800">WeKnora 联动</h3>
+          <p class="text-sm text-gray-500">同步报告和高相关论文到 WeKnora 知识库</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">API 地址</label>
+              <input
+                v-model="weknoraForm.base_url"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                placeholder="http://localhost:8080/api/v1"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+              <input
+                v-model="weknoraForm.api_key"
+                type="password"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                placeholder="sk-..."
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">知识库 ID</label>
+              <input
+                v-model="weknoraForm.knowledge_base_id"
+                type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                placeholder="kb-..."
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">论文同步最低分</label>
+              <input
+                v-model.number="weknoraForm.min_score_to_sync"
+                type="number"
+                min="0"
+                max="10"
+                step="0.5"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                placeholder="6.0"
+              />
+            </div>
+            <div class="flex items-center space-x-3 pt-6">
+              <button
+                @click="weknoraForm.enabled = !weknoraForm.enabled"
+                :class="[
+                  'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                  weknoraForm.enabled ? 'bg-blue-600' : 'bg-gray-300',
+                ]"
+              >
+                <span
+                  :class="[
+                    'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    weknoraForm.enabled ? 'translate-x-4' : 'translate-x-0',
+                  ]"
+                ></span>
+              </button>
+              <span class="text-sm text-gray-700">{{ weknoraForm.enabled ? '已启用' : '已禁用' }}</span>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input v-model="weknoraForm.sync_reports" type="checkbox" class="rounded border-gray-300" />
+              同步报告 Markdown
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input v-model="weknoraForm.sync_papers" type="checkbox" class="rounded border-gray-300" />
+              同步高相关论文
+            </label>
+          </div>
+
+          <div class="flex items-center space-x-3 pt-4">
+            <button
+              @click="saveWeKnora"
+              :disabled="savingWeKnora"
+              class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {{ savingWeKnora ? '保存中...' : '保存配置' }}
+            </button>
+            <button
+              @click="testWeKnora"
+              :disabled="testingWeKnora"
+              class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+            >
+              {{ testingWeKnora ? '测试中...' : '测试连接' }}
+            </button>
+          </div>
+        </div>
+
         <!-- Schedule Config Tab -->
         <div v-if="activeTab === 'schedule'" class="space-y-4">
           <h3 class="text-base font-semibold text-gray-800">定时任务配置</h3>
@@ -350,6 +440,7 @@ const tabs = [
   { id: 'ai', label: 'AI 配置' },
   { id: 'email', label: '邮件配置' },
   { id: 'webdav', label: 'WebDAV 配置' },
+  { id: 'weknora', label: 'WeKnora 联动' },
   { id: 'schedule', label: '定时任务' },
 ]
 
@@ -387,6 +478,19 @@ const webdavForm = reactive({
 const savingWebDAV = ref(false)
 const testingWebDAV = ref(false)
 
+// WeKnora
+const weknoraForm = reactive({
+  enabled: false,
+  base_url: 'http://localhost:8080/api/v1',
+  api_key: '',
+  knowledge_base_id: '',
+  min_score_to_sync: 6.0,
+  sync_reports: true,
+  sync_papers: true,
+})
+const savingWeKnora = ref(false)
+const testingWeKnora = ref(false)
+
 // Schedule
 const scheduleForm = reactive({
   cron_hour: 8,
@@ -418,6 +522,15 @@ async function loadWebDAV() {
   try {
     const { data } = await settingsApi.getWebDAV()
     Object.assign(webdavForm, data)
+  } catch {
+    // use defaults
+  }
+}
+
+async function loadWeKnora() {
+  try {
+    const { data } = await settingsApi.getWeKnora()
+    Object.assign(weknoraForm, data)
   } catch {
     // use defaults
   }
@@ -466,6 +579,18 @@ async function saveWebDAV() {
     appStore.error('保存失败: ' + err.message)
   } finally {
     savingWebDAV.value = false
+  }
+}
+
+async function saveWeKnora() {
+  savingWeKnora.value = true
+  try {
+    await settingsApi.saveWeKnora({ ...weknoraForm })
+    appStore.success('WeKnora 配置已保存')
+  } catch (err: any) {
+    appStore.error('保存失败: ' + err.message)
+  } finally {
+    savingWeKnora.value = false
   }
 }
 
@@ -518,10 +643,23 @@ async function testWebDAV() {
   }
 }
 
+async function testWeKnora() {
+  testingWeKnora.value = true
+  try {
+    await settingsApi.testWeKnora({ ...weknoraForm })
+    appStore.success('WeKnora 连接测试成功')
+  } catch (err: any) {
+    appStore.error('连接测试失败: ' + err.message)
+  } finally {
+    testingWeKnora.value = false
+  }
+}
+
 onMounted(() => {
   loadAI()
   loadEmail()
   loadWebDAV()
+  loadWeKnora()
   loadSchedule()
 })
 </script>
