@@ -40,9 +40,17 @@
   - `GET /api/reports/1`：返回详情、Markdown、items。
   - `POST /api/reports/1/send`：返回 `status=sent`。
   - `GET /api/reports/1/markdown`：200，返回 Markdown。
+  - GitHub：已推送 `66a9947 feat: add persistent report center` 到 `origin/main`。
+  - nc48：`/opt/PaperPulse` 已拉取 `66a9947`，`docker compose up -d --build` 完成。
+  - nc48：容器 `paperpulse` healthy，端口 `127.0.0.1:18095->8000`。
+  - nc48：`GET /api/health` 返回 `{"status":"ok","version":"1.0.0"}`。
+  - nc48：`GET /reports` 返回 200。
+  - nc48：容器内 SQLite 已确认存在 `reports`、`report_items`、`email_deliveries` 表。
 - 遇到的问题：
   - `git worktree` 创建隔离分支失败：`.git/refs/heads/upgrade-reports.lock` permission denied；已记录并继续在 main 工作树实现。
   - 普通权限下 Docker Desktop 管道偶发 permission denied；提升权限后测试通过。
+  - nc48 首次部署后立即 curl 时容器仍在 `health: starting`，出现 connection reset；等待 healthy 后复测通过。
+  - nc48 主机无 `sqlite3` CLI；改用容器内 Python 检查数据库表结构。
 
 ### 阶段 1：基线确认与重构边界
 - **状态：** complete
