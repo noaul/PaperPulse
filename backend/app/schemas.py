@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 
 # Feed
@@ -92,6 +92,7 @@ class AIConfig(BaseModel):
     api_base: str = "https://api.openai.com/v1"
     api_key: str = ""
     model: str = "gpt-4o-mini"
+    reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = "xhigh"
     enabled: bool = True
 
 class EmailConfig(BaseModel):

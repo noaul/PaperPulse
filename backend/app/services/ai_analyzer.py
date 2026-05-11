@@ -13,6 +13,7 @@ DEFAULT_AI_CONFIG = {
     "api_base": "https://api.openai.com/v1",
     "api_key": "",
     "model": "gpt-4o-mini",
+    "reasoning_effort": "xhigh",
     "enabled": True,
 }
 
@@ -37,6 +38,67 @@ def build_chat_completions_url(api_base: str) -> str:
     return f"{normalized}/v1/chat/completions"
 
 
+def build_responses_url(api_base: str) -> str:
+    """Accept either an API base URL or a full responses endpoint."""
+    normalized = (api_base or "").strip().rstrip("/")
+    if not normalized:
+        raise ValueError("AI API 地址为空")
+
+    if normalized.endswith("/responses"):
+        return normalized
+
+    path = normalized.split("://", 1)[-1].split("/", 1)
+    url_path = f"/{path[1]}" if len(path) > 1 else ""
+    if re.search(r"/(?:v\d+(?:beta)?|api/v\d+)$", url_path, re.IGNORECASE):
+        return f"{normalized}/responses"
+
+    return f"{normalized}/v1/responses"
+
+
+def uses_responses_api(api_base: str) -> bool:
+    return (api_base or "").strip().rstrip("/").endswith("/responses")
+
+
+def build_ai_request(
+    config: dict,
+    messages: list[dict],
+    max_tokens: int = 500,
+    temperature: float = 0.1,
+) -> tuple[str, dict]:
+    if uses_responses_api(config.get("api_base", "")):
+        payload = {
+            "model": config.get("model", DEFAULT_AI_CONFIG["model"]),
+            "input": messages,
+            "max_output_tokens": max_tokens,
+        }
+        effort = (config.get("reasoning_effort") or DEFAULT_AI_CONFIG["reasoning_effort"]).strip()
+        if effort and effort != "none":
+            payload["reasoning"] = {"effort": effort}
+        return build_responses_url(config.get("api_base", "")), payload
+
+    return build_chat_completions_url(config.get("api_base", "")), {
+        "model": config.get("model", DEFAULT_AI_CONFIG["model"]),
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+
+
+def extract_response_text(data: dict) -> str:
+    if "choices" in data:
+        return data["choices"][0]["message"]["content"]
+
+    if data.get("output_text"):
+        return data["output_text"]
+
+    for output in data.get("output", []):
+        for content in output.get("content", []):
+            if content.get("text"):
+                return content["text"]
+
+    raise ValueError("AI 响应中未找到文本内容")
+
+
 def extract_json_object(content: str) -> dict:
     content = content.strip()
     if content.startswith("```"):
@@ -53,21 +115,15 @@ def extract_json_object(content: str) -> dict:
 
 
 async def request_chat_completion(config: dict, messages: list[dict], max_tokens: int = 500) -> str:
-    url = build_chat_completions_url(config.get("api_base", ""))
+    url, payload = build_ai_request(config, messages, max_tokens=max_tokens)
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
             url,
             headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json"},
-            json={
-                "model": config.get("model", DEFAULT_AI_CONFIG["model"]),
-                "messages": messages,
-                "temperature": 0.1,
-                "max_tokens": max_tokens,
-            },
+            json=payload,
         )
         resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        return extract_response_text(resp.json())
 
 
 async def get_ai_config(db: AsyncSession) -> dict:

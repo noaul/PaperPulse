@@ -69,6 +69,19 @@
                 placeholder="gpt-4o-mini"
               />
             </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">推理强度</label>
+              <select
+                v-model="aiForm.reasoning_effort"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              >
+                <option value="xhigh">xhigh - 最深推理</option>
+                <option value="high">high - 深度推理</option>
+                <option value="medium">medium - 均衡模式</option>
+                <option value="low">low - 快速响应</option>
+                <option value="none">none - 不推理</option>
+              </select>
+            </div>
             <div class="flex items-center space-x-3 pt-6">
               <button
                 @click="aiForm.enabled = !aiForm.enabled"
@@ -345,6 +358,7 @@ const aiForm = reactive({
   api_base: '',
   api_key: '',
   model: '',
+  reasoning_effort: 'xhigh',
   enabled: false,
 })
 const savingAI = ref(false)
