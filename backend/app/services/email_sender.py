@@ -1,13 +1,11 @@
 import smtplib
 import json
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..models import Setting, AnalysisResult, Paper, Keyword
-from .rss_fetcher import clean_text, normalize_paper_url
-from datetime import datetime, timezone
+from ..models import Setting
+from .rss_fetcher import normalize_paper_url
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -72,65 +70,13 @@ async def build_email_html(papers_data: list[dict]) -> str:
 
 
 async def send_daily_report(db: AsyncSession, threshold: float = 6.0) -> dict:
-    config = await get_email_config(db)
-    if not config.get("enabled") or not config.get("recipient"):
-        message = "邮件未启用或收件人为空"
-        logger.info(message)
-        return {"sent": False, "skipped": True, "reason": message, "paper_count": 0}
+    from .report_center import create_and_send_recent_report
 
-    # Get today's high-relevance analyses
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    result = await db.execute(
-        select(AnalysisResult, Paper, Keyword)
-        .join(Paper, AnalysisResult.paper_id == Paper.id)
-        .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
-        .where(AnalysisResult.analyzed_at >= today)
-        .where(AnalysisResult.relevance_score >= threshold)
-        .order_by(AnalysisResult.relevance_score.desc())
-    )
-    rows = result.all()
-
-    if not rows:
-        message = "今天没有达到阈值的高相关论文，跳过发送"
-        logger.info(message)
-        return {"sent": False, "skipped": True, "reason": message, "paper_count": 0}
-
-    # Group by paper
-    paper_map: dict[int, dict] = {}
-    for ar, paper, kw in rows:
-        if paper.id not in paper_map:
-            paper_map[paper.id] = {
-                "title": clean_text(paper.title),
-                "authors": clean_text(paper.authors),
-                "url": build_paper_url(paper.url, paper.doi),
-                "journal": "",
-                "score": ar.relevance_score,
-                "summary": ar.summary or "",
-                "abstract": clean_text(paper.abstract),
-                "keywords": [],
-            }
-        paper_map[paper.id]["keywords"].append(kw.word)
-
-    papers_data = sorted(paper_map.values(), key=lambda x: x["score"], reverse=True)
-
-    html = await build_email_html(papers_data)
-    subject = f"[PaperPulse] {len(papers_data)} relevant papers found - {datetime.now().strftime('%Y-%m-%d')}"
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{config.get('sender_name', 'PaperPulse')} <{config['smtp_user']}>"
-        msg["To"] = config["recipient"]
-        msg.attach(MIMEText(html, "html", "utf-8"))
-
-        with open_smtp_connection(config) as server:
-            if int(config.get("smtp_port", 587)) != 465:
-                server.starttls()
-            server.login(config["smtp_user"], config["smtp_password"])
-            server.send_message(msg)
-
-        logger.info(f"Email sent to {config['recipient']}: {len(papers_data)} papers")
-        return {"sent": True, "skipped": False, "reason": "", "paper_count": len(papers_data)}
-    except Exception as e:
-        logger.error(f"Failed to send email: {e}")
-        return {"sent": False, "skipped": False, "reason": str(e), "paper_count": len(papers_data)}
+    result = await create_and_send_recent_report(db, threshold=threshold, source="daily-email")
+    if result["sent"]:
+        logger.info("Email sent: report=%s papers=%s", result["report_id"], result["paper_count"])
+    elif result["skipped"]:
+        logger.info("Email skipped: %s", result["reason"])
+    else:
+        logger.error("Email failed: %s", result["reason"])
+    return result

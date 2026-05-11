@@ -157,3 +157,54 @@ class WorkflowExecutionOut(BaseModel):
 
 class WorkflowExecutionDetail(WorkflowExecutionOut):
     logs: list[WorkflowExecutionLogOut] = Field(default_factory=list)
+
+
+# Reports
+class ReportItemOut(BaseModel):
+    id: int
+    report_id: int
+    paper_id: Optional[int]
+    title: str
+    authors: Optional[str]
+    abstract: Optional[str]
+    url: Optional[str]
+    journal_name: Optional[str]
+    relevance_score: float
+    summary: Optional[str]
+    keywords: list[str] = Field(default_factory=list)
+
+
+class EmailDeliveryOut(BaseModel):
+    id: int
+    report_id: Optional[int]
+    recipient: Optional[str]
+    subject: Optional[str]
+    status: str
+    error_message: Optional[str]
+    paper_count: int
+    created_at: Optional[datetime]
+    sent_at: Optional[datetime]
+
+
+class ReportOut(BaseModel):
+    id: int
+    title: str
+    source: Optional[str]
+    status: str
+    threshold: float
+    paper_count: int
+    max_relevance_score: float
+    created_at: Optional[datetime]
+    sent_at: Optional[datetime]
+
+
+class ReportDetail(ReportOut):
+    markdown: str
+    html: str
+    items: list[ReportItemOut] = Field(default_factory=list)
+    deliveries: list[EmailDeliveryOut] = Field(default_factory=list)
+
+
+class ReportCreate(BaseModel):
+    threshold: float = 6.0
+    source: str = "manual"
