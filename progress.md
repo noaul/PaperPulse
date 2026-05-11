@@ -52,6 +52,23 @@
   - nc48 首次部署后立即 curl 时容器仍在 `health: starting`，出现 connection reset；等待 healthy 后复测通过。
   - nc48 主机无 `sqlite3` CLI；改用容器内 Python 检查数据库表结构。
 
+### 阶段 15：前端视觉重构
+- **状态：** in_progress
+- 用户反馈：
+  - “重构一下前端吧，现在的不好看”
+- 已执行：
+  - 重写 `frontend/src/style.css` 全局视觉系统：浅色研究工作台背景、玻璃质感卡片、统一按钮/输入/滚动条、全局阴影和边框。
+  - 重构 `App.vue`：侧边栏改为浅色半透明导航，顶部栏增加副标题和在线状态。
+  - 重构 `Login.vue`：登录页改成同一视觉语言的居中工作台入口。
+  - 优化 `Dashboard.vue` 统计卡和快速操作层次。
+  - 优化 `Reports.vue` 顶部报告生成区域和详情面板高度。
+  - 优化 `Papers.vue` 标题层级。
+- 验证：
+  - `npm run build`：通过。
+  - `docker compose up -d --build`：本地构建启动通过，容器 healthy。
+  - `GET /api/health`：200。
+  - `GET /login`、`/dashboard`、`/reports`、`/papers`、`/settings`：均返回 200。
+
 ### 阶段 1：基线确认与重构边界
 - **状态：** complete
 - **开始时间：** 2026-05-11

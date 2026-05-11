@@ -3,24 +3,24 @@
   <router-view v-if="!appStore.isLoggedIn" />
 
   <!-- Main app layout -->
-  <div v-else class="flex h-screen bg-gray-50 overflow-hidden">
+  <div v-else class="paper-shell flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <aside
       :class="[
-        'flex flex-col bg-gray-800 text-gray-100 transition-all duration-300 ease-in-out',
+        'paper-sidebar flex flex-col transition-all duration-300 ease-in-out',
         appStore.sidebarCollapsed ? 'w-16' : 'w-60',
       ]"
     >
       <!-- Logo -->
-      <div class="flex items-center h-16 px-4 border-b border-gray-700">
+      <div class="flex items-center h-16 px-4 border-b">
         <div class="flex items-center space-x-3 overflow-hidden">
-          <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div class="paper-logo-mark w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
             <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
           </div>
-          <span v-if="!appStore.sidebarCollapsed" class="font-semibold text-lg whitespace-nowrap">
+          <span v-if="!appStore.sidebarCollapsed" class="font-semibold text-lg whitespace-nowrap text-gray-900">
             PaperPulse
           </span>
         </div>
@@ -35,8 +35,8 @@
           :class="[
             'flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors duration-200',
             isActive(item.path)
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+              ? 'paper-nav-link-active'
+              : 'paper-nav-link',
           ]"
         >
           <div class="w-5 h-5 flex-shrink-0" v-html="item.icon"></div>
@@ -47,13 +47,13 @@
       </nav>
 
       <!-- User / Logout -->
-      <div class="border-t border-gray-700 p-2 space-y-1">
-        <div v-if="!appStore.sidebarCollapsed" class="px-3 py-1.5 text-xs text-gray-400 truncate">
+      <div class="border-t p-2 space-y-1">
+        <div v-if="!appStore.sidebarCollapsed" class="px-3 py-1.5 text-xs text-gray-500 truncate">
           {{ appStore.authUsername }}
         </div>
         <button
           @click="handleLogout"
-          class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-500 hover:bg-white/70 hover:text-gray-900 transition-colors"
           title="退出登录"
         >
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -64,7 +64,7 @@
         </button>
         <button
           @click="appStore.toggleSidebar"
-          class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          class="w-full flex items-center justify-center px-3 py-2 rounded-lg text-gray-500 hover:bg-white/70 hover:text-gray-900 transition-colors"
         >
           <svg
             class="w-5 h-5 transition-transform duration-300"
@@ -81,14 +81,21 @@
     <!-- Main Content -->
     <main class="flex-1 flex flex-col overflow-hidden">
       <!-- Top Bar -->
-      <header class="h-16 bg-white border-b border-gray-200 flex items-center px-6 flex-shrink-0">
-        <h1 class="text-xl font-semibold text-gray-800">
-          {{ currentTitle }}
-        </h1>
+      <header class="paper-topbar h-16 flex items-center justify-between px-6 flex-shrink-0">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">
+            {{ currentTitle }}
+          </h1>
+          <p class="text-xs text-gray-500 mt-0.5">论文监控、AI 分析与报告工作台</p>
+        </div>
+        <div class="hidden md:flex items-center gap-2 text-xs text-gray-500">
+          <span class="h-2 w-2 rounded-full bg-green-500"></span>
+          系统在线
+        </div>
       </header>
 
       <!-- Page Content -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <div class="paper-content flex-1 overflow-y-auto p-6">
         <router-view />
       </div>
     </main>

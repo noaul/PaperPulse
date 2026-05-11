@@ -1,20 +1,20 @@
 <template>
-  <div class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-    <div class="w-full max-w-sm">
+  <div class="paper-login-scene min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-md">
       <!-- Logo -->
       <div class="text-center mb-8">
-        <div class="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+        <div class="paper-logo-mark w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4">
           <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
         </div>
-        <h1 class="text-2xl font-bold text-gray-800">PaperPulse</h1>
-        <p class="text-sm text-gray-500 mt-1">{{ isRegister ? '创建管理员账户' : '登录到您的账户' }}</p>
+        <h1 class="text-3xl font-semibold text-gray-900">PaperPulse</h1>
+        <p class="text-sm text-gray-500 mt-2">{{ isRegister ? '创建管理员账户' : '登录到文献工作台' }}</p>
       </div>
 
       <!-- Form -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="paper-login-panel rounded-xl p-7">
         <form @submit.prevent="handleSubmit">
           <!-- Username -->
           <div class="mb-4">
