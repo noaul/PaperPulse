@@ -55,6 +55,62 @@ class AnalysisResult(Base):
     keyword = relationship("Keyword", back_populates="analyses")
 
 
+class Report(Base):
+    __tablename__ = "reports"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(512), nullable=False)
+    source = Column(String(255), default="manual")
+    status = Column(String(50), default="ready", index=True)
+    threshold = Column(Float, default=6.0)
+    paper_count = Column(Integer, default=0)
+    max_relevance_score = Column(Float, default=0)
+    markdown = Column(Text, default="")
+    html = Column(Text, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    sent_at = Column(DateTime)
+    items = relationship("ReportItem", back_populates="report", cascade="all, delete-orphan")
+    deliveries = relationship("EmailDelivery", back_populates="report", cascade="all, delete-orphan")
+
+
+class ReportItem(Base):
+    __tablename__ = "report_items"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="CASCADE"), nullable=False, index=True)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="SET NULL"), index=True)
+    title = Column(String(1024), nullable=False)
+    authors = Column(Text)
+    abstract = Column(Text)
+    url = Column(String(1024))
+    journal_name = Column(String(255))
+    relevance_score = Column(Float, default=0)
+    summary = Column(Text)
+    keywords_json = Column(Text, default="[]")
+    report = relationship("Report", back_populates="items")
+    paper = relationship("Paper")
+
+    @property
+    def keywords(self) -> list[str]:
+        try:
+            parsed = json.loads(self.keywords_json or "[]")
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
+
+
+class EmailDelivery(Base):
+    __tablename__ = "email_deliveries"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="SET NULL"), index=True)
+    recipient = Column(String(512))
+    subject = Column(String(512))
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    error_message = Column(Text)
+    paper_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    sent_at = Column(DateTime)
+    report = relationship("Report", back_populates="deliveries")
+
+
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
     id = Column(Integer, primary_key=True, autoincrement=True)

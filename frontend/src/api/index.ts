@@ -209,6 +209,66 @@ export const analysisApi = {
   sendReport: () => api.post('/analysis/send-report'),
 }
 
+// ==================== Reports ====================
+export interface ReportItem {
+  id: number
+  report_id: number
+  paper_id: number | null
+  title: string
+  authors: string | null
+  abstract: string | null
+  url: string | null
+  journal_name: string | null
+  relevance_score: number
+  summary: string | null
+  keywords: string[]
+}
+
+export interface EmailDelivery {
+  id: number
+  report_id: number | null
+  recipient: string | null
+  subject: string | null
+  status: 'pending' | 'sent' | 'skipped' | 'failed' | string
+  error_message: string | null
+  paper_count: number
+  created_at: string | null
+  sent_at: string | null
+}
+
+export interface Report {
+  id: number
+  title: string
+  source: string | null
+  status: string
+  threshold: number
+  paper_count: number
+  max_relevance_score: number
+  created_at: string | null
+  sent_at: string | null
+}
+
+export interface ReportDetail extends Report {
+  markdown: string
+  html: string
+  items: ReportItem[]
+  deliveries: EmailDelivery[]
+}
+
+export interface ReportCreate {
+  threshold: number
+  source?: string
+}
+
+export const reportApi = {
+  list: (limit?: number) => api.get<Report[]>('/reports', { params: { limit } }),
+  create: (data: ReportCreate) => api.post<Report>('/reports', data),
+  get: (id: number) => api.get<ReportDetail>(`/reports/${id}`),
+  send: (id: number) => api.post<EmailDelivery>(`/reports/${id}/send`),
+  markdown: (id: number) => api.get<Blob>(`/reports/${id}/markdown`, { responseType: 'blob' }),
+  deliveries: (id: number) => api.get<EmailDelivery[]>(`/reports/${id}/deliveries`),
+}
+
 // ==================== Dashboard ====================
 export interface DashboardStats {
   total_feeds: number

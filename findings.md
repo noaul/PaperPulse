@@ -42,6 +42,8 @@
 | 分析结果独立为 `/analysis` 页面 | Dashboard 保持操作和进度，分析页面专注浏览结果 |
 | 邮件报告包含论文摘要 | 用户明确要求不只题目，也要有摘要 |
 | 后续优先做“报告中心 + 摘要增强 + 邮件预览/重发” | 这是论文抓取→分析→汇总→通知闭环里最缺的可见性和可控性 |
+| 报告中心使用数据库持久化 Report/ReportItem/EmailDelivery | 页面刷新后仍可查看已生成报告、Markdown 和投递状态，解决一次性邮件/内存态结果不可追踪的问题 |
+| `send_daily_report()` 委托报告中心服务 | 保留旧 analysis/workflow 入口兼容，同时让定时邮件也自动生成可追溯报告 |
 
 ## 后续功能复杂度分析
 
@@ -87,12 +89,26 @@
 | RAG/语义检索 | 对历史论文和报告做向量检索/问答 | 高 | L-XL | P3 |
 | 多用户/权限 | 用户级订阅源、关键词、报告隔离 | 中 | L | P3 |
 
+## P0 报告中心实现发现
+
+- `Base.metadata.create_all` 会在启动时自动创建 `reports`、`report_items`、`email_deliveries` 三张新表，适合当前 SQLite 部署方式。
+- 本地挂载数据库 `data/paperpulse.db` 已验证新表创建成功。
+- 本地 API 验证结果：
+  - `GET /reports`：SPA 路由 200。
+  - `GET /api/reports`：认证后返回报告列表。
+  - `POST /api/reports`：阈值 8.0 生成报告成功，生成 31 条报告项。
+  - `GET /api/reports/1`：返回 Markdown、items 和 deliveries。
+  - `POST /api/reports/1/send`：本地邮件配置可发送，返回 `status=sent`。
+  - `GET /api/reports/1/markdown`：返回 200 和 Markdown 内容。
+- Docker Desktop 管道在普通命令下偶发 `permission denied`，提升权限后容器内单元测试通过。
+
 ## 遇到的问题
 | 问题 | 解决方案 |
 |------|---------|
 | 本地 Python 缺少后端依赖 | 不阻塞最终验证；用 Docker 镜像运行单元测试 |
 | Docker Hub 直连 token 超时 | 使用 `127.0.0.1:18080` 代理拉取基础镜像并构建 |
 | 邮件发送 465/SSL 兼容性不足 | 新增 `open_smtp_connection`，465 走 `SMTP_SSL`，其他端口走 STARTTLS |
+| git worktree 创建分支失败 | `.git/refs/heads` 写入 lock 文件 permission denied，记录后继续在 main 工作树实现 |
 
 ## 资源
 - 本地仓库：`C:\Users\aodo\PaperPulse`

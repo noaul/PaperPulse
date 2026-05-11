@@ -20,6 +20,30 @@
   - 是否按推荐 P0 批次开始实现。
   - 是否允许先创建 git worktree 隔离实现分支。
 
+### 阶段 14：P0 报告中心与邮件投递记录
+- **状态：** in_progress
+- 已执行：
+  - 新增 `Report`、`ReportItem`、`EmailDelivery` 模型，用数据库持久化报告内容和每次邮件投递状态。
+  - 新增 `backend/app/services/report_center.py`，封装今日高相关分析结果收集、报告生成、Markdown 渲染、邮件发送和投递记录。
+  - `send_daily_report()` 改为委托报告中心服务，旧邮件入口保持兼容，同时每日邮件会生成可追踪报告。
+  - 新增 `/api/reports` API：列表、创建、详情、发送、Markdown 下载、投递记录。
+  - 新增前端“报告中心”页面和侧边栏入口，支持生成报告、查看条目、Markdown 预览/下载、发送邮件和查看投递记录。
+  - 新增 `backend/tests/test_reports.py` 覆盖报告持久化、去重、邮件跳过和发送成功记录。
+- 验证：
+  - `python -m compileall backend\app`：通过。
+  - `npm run build`：通过，生成 `Reports` 前端 chunk。
+  - `docker run --rm -v ${PWD}\backend:/src:ro -w /src paperpulse-app python -m unittest tests.test_reports tests.test_email_sender tests.test_rss_fetcher tests.test_workflow_engine`：18 tests OK。
+  - `docker compose up -d --build`：通过，容器 healthy。
+  - `GET /api/health`：200，返回 `{"status":"ok","version":"1.0.0"}`。
+  - `GET /reports`：200。
+  - `POST /api/reports`：认证后生成报告 `id=1`，31 条报告项。
+  - `GET /api/reports/1`：返回详情、Markdown、items。
+  - `POST /api/reports/1/send`：返回 `status=sent`。
+  - `GET /api/reports/1/markdown`：200，返回 Markdown。
+- 遇到的问题：
+  - `git worktree` 创建隔离分支失败：`.git/refs/heads/upgrade-reports.lock` permission denied；已记录并继续在 main 工作树实现。
+  - 普通权限下 Docker Desktop 管道偶发 permission denied；提升权限后测试通过。
+
 ### 阶段 1：基线确认与重构边界
 - **状态：** complete
 - **开始时间：** 2026-05-11
