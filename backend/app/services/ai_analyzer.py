@@ -228,7 +228,7 @@ async def analyze_new_papers(
             paper_result = await db.execute(paper_query.order_by(Paper.fetched_at.desc()))
             papers = paper_result.scalars().all()
     else:
-        paper_result = await db.execute(paper_query.order_by(Paper.fetched_at.desc()).limit(50))
+        paper_result = await db.execute(paper_query.order_by(Paper.fetched_at.desc()))
         papers = paper_result.scalars().all()
 
     total = len(papers)
