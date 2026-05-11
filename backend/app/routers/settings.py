@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Setting
-from ..schemas import AIConfig, EmailConfig, WebDAVConfig, ScheduleConfig
+from ..schemas import AIConfig, EmailConfig, WebDAVConfig, WeKnoraConfig, ScheduleConfig
 from ..services.ai_analyzer import build_ai_request, DEFAULT_AI_CONFIG
 from ..services.email_sender import open_smtp_connection
+from ..services.weknora_client import WeKnoraClient
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -59,6 +60,17 @@ async def get_webdav_config(db: AsyncSession = Depends(get_db)):
 @router.put("/webdav")
 async def set_webdav_config(data: WebDAVConfig, db: AsyncSession = Depends(get_db)):
     await _set_setting(db, "webdav_config", data.model_dump())
+    return {"success": True}
+
+
+@router.get("/weknora")
+async def get_weknora_config(db: AsyncSession = Depends(get_db)):
+    return await _get_setting(db, "weknora_config", WeKnoraConfig().model_dump())
+
+
+@router.put("/weknora")
+async def set_weknora_config(data: WeKnoraConfig, db: AsyncSession = Depends(get_db)):
+    await _set_setting(db, "weknora_config", data.model_dump())
     return {"success": True}
 
 
@@ -152,3 +164,26 @@ async def test_webdav_config(data: WebDAVConfig | None = None, db: AsyncSession 
         raise HTTPException(400, f"WebDAV 连接失败: {exc}") from exc
 
     return {"success": True, "path_exists": exists}
+
+
+@router.post("/weknora/test")
+async def test_weknora_config(data: WeKnoraConfig | None = None, db: AsyncSession = Depends(get_db)):
+    config = data.model_dump() if data else await _get_setting(db, "weknora_config", WeKnoraConfig().model_dump())
+    if not config.get("enabled"):
+        raise HTTPException(400, "WeKnora 联动未启用")
+    if not config.get("base_url"):
+        raise HTTPException(400, "WeKnora API 地址为空")
+    if not config.get("api_key"):
+        raise HTTPException(400, "WeKnora API Key 为空")
+    if not config.get("knowledge_base_id"):
+        raise HTTPException(400, "WeKnora 知识库 ID 为空")
+
+    try:
+        client = WeKnoraClient(config["base_url"], config["api_key"], timeout=20)
+        await client.list_knowledge_bases()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(exc.response.status_code, f"WeKnora 服务返回错误: {exc.response.text[:200]}") from exc
+    except Exception as exc:
+        raise HTTPException(400, f"WeKnora 连接失败: {exc}") from exc
+
+    return {"success": True}

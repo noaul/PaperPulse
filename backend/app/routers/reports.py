@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models import EmailDelivery, Report, ReportItem
 from ..schemas import EmailDeliveryOut, ReportCreate, ReportDetail, ReportItemOut, ReportOut
 from ..services.report_center import create_report_from_recent_analyses, send_report_email
+from ..services.weknora_sync import sync_report_to_weknora
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -103,6 +104,23 @@ async def send_report(report_id: int, db: AsyncSession = Depends(get_db)):
     except ValueError:
         raise HTTPException(404, "Report not found")
     return delivery_out(delivery)
+
+
+@router.post("/{report_id}/sync-weknora")
+async def sync_report_weknora(report_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        sync = await sync_report_to_weknora(db, report_id)
+    except ValueError:
+        raise HTTPException(404, "Report not found")
+    if not sync:
+        return {"success": True, "synced": False, "reason": "WeKnora 未启用或报告同步未开启"}
+    return {
+        "success": sync.status == "success",
+        "synced": sync.status == "success",
+        "status": sync.status,
+        "weknora_knowledge_id": sync.weknora_knowledge_id,
+        "error_message": sync.error_message,
+    }
 
 
 @router.get("/{report_id}/markdown")

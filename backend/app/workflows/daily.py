@@ -7,6 +7,7 @@ from .nodes.ai_analyze import AiAnalyzeNode
 from .nodes.email_report import EmailReportNode
 from .nodes.fetch_rss import FetchRssNode
 from .nodes.webdav_backup import WebdavBackupNode
+from .nodes.weknora_sync import WeKnoraSyncNode
 
 
 async def run_analysis_workflow(db: AsyncSession) -> WorkflowExecution:
@@ -24,7 +25,7 @@ async def run_send_report_workflow(db: AsyncSession) -> WorkflowExecution:
 async def run_daily_workflow(db: AsyncSession) -> WorkflowExecution:
     return await WorkflowEngine(db).run(
         "daily-paperpulse",
-        [FetchRssNode(), AiAnalyzeNode(), EmailReportNode(), WebdavBackupNode()],
+        [FetchRssNode(), AiAnalyzeNode(), EmailReportNode(), WeKnoraSyncNode(), WebdavBackupNode()],
     )
 
 

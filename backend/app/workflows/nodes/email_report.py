@@ -28,6 +28,7 @@ class EmailReportNode(WorkflowNode):
         result = await send_daily_report(context.db, threshold=threshold)
         sent = bool(result.get("sent"))
         await context.update_summary(
+            email_report_id=result.get("report_id"),
             email_sent=sent,
             email_skipped=bool(result.get("skipped")),
             email_reason=result.get("reason", ""),

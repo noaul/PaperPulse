@@ -111,6 +111,21 @@ class EmailDelivery(Base):
     report = relationship("Report", back_populates="deliveries")
 
 
+class WeKnoraSync(Base):
+    __tablename__ = "weknora_syncs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="SET NULL"), index=True)
+    report_id = Column(Integer, ForeignKey("reports.id", ondelete="SET NULL"), index=True)
+    weknora_knowledge_id = Column(String(255), index=True)
+    sync_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="pending", index=True)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    synced_at = Column(DateTime)
+    paper = relationship("Paper")
+    report = relationship("Report")
+
+
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
     id = Column(Integer, primary_key=True, autoincrement=True)

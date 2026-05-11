@@ -109,6 +109,7 @@ export const paperApi = {
   list: (params?: PaperListParams) => api.get<PaginatedResponse<Paper>>('/papers', { params }),
   get: (id: number) => api.get<Paper>(`/papers/${id}`),
   markRead: (id: number) => api.put(`/papers/${id}/read`),
+  syncWeKnora: (id: number) => api.post(`/papers/${id}/sync-weknora`),
 }
 
 // ==================== Keywords ====================
@@ -164,6 +165,16 @@ export interface WebDAVSettings {
   remote_path: string
 }
 
+export interface WeKnoraSettings {
+  enabled: boolean
+  base_url: string
+  api_key: string
+  knowledge_base_id: string
+  min_score_to_sync: number
+  sync_reports: boolean
+  sync_papers: boolean
+}
+
 export interface ScheduleSettings {
   cron_hour: number
   cron_minute: number
@@ -180,6 +191,9 @@ export const settingsApi = {
   getWebDAV: () => api.get<WebDAVSettings>('/settings/webdav'),
   saveWebDAV: (data: WebDAVSettings) => api.put('/settings/webdav', data),
   testWebDAV: (data: WebDAVSettings) => api.post('/settings/webdav/test', data),
+  getWeKnora: () => api.get<WeKnoraSettings>('/settings/weknora'),
+  saveWeKnora: (data: WeKnoraSettings) => api.put('/settings/weknora', data),
+  testWeKnora: (data: WeKnoraSettings) => api.post('/settings/weknora/test', data),
   getSchedule: () => api.get<ScheduleSettings>('/settings/schedule'),
   saveSchedule: (data: ScheduleSettings) => api.put('/settings/schedule', data),
 }
@@ -266,6 +280,7 @@ export const reportApi = {
   create: (data: ReportCreate) => api.post<Report>('/reports', data),
   get: (id: number) => api.get<ReportDetail>(`/reports/${id}`),
   send: (id: number) => api.post<EmailDelivery>(`/reports/${id}/send`),
+  syncWeKnora: (id: number) => api.post(`/reports/${id}/sync-weknora`),
   markdown: (id: number) => api.get<Blob>(`/reports/${id}/markdown`, { responseType: 'blob' }),
   deliveries: (id: number) => api.get<EmailDelivery[]>(`/reports/${id}/deliveries`),
 }

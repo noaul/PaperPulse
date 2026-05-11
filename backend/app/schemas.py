@@ -110,6 +110,15 @@ class WebDAVConfig(BaseModel):
     password: str = ""
     remote_path: str = "/PaperPulse/"
 
+class WeKnoraConfig(BaseModel):
+    enabled: bool = False
+    base_url: str = "http://localhost:8080/api/v1"
+    api_key: str = ""
+    knowledge_base_id: str = ""
+    min_score_to_sync: float = 6.0
+    sync_reports: bool = True
+    sync_papers: bool = True
+
 class ScheduleConfig(BaseModel):
     cron_hour: int = 6
     cron_minute: int = 0
