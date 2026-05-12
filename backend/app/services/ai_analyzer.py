@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Paper, Keyword, AnalysisResult, Setting
+from .rss_fetcher import get_latest_fetched_paper_ids
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +219,10 @@ async def analyze_new_papers(
 
     # Get papers without analysis. Fetch/analyze workflows pass paper_ids so
     # progress total tracks only the papers fetched in the current run.
+    # Manual analysis uses the latest persisted fetch batch when available.
+    if paper_ids is None:
+        paper_ids = await get_latest_fetched_paper_ids(db)
+
     analyzed_ids = select(AnalysisResult.paper_id).distinct()
     paper_query = select(Paper).where(~Paper.id.in_(analyzed_ids))
     if paper_ids is not None:

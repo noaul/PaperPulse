@@ -1,17 +1,37 @@
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <h2 class="text-lg font-semibold text-gray-800">RSS 订阅源管理</h2>
-      <button
-        @click="showAddModal = true"
-        class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-      >
-        <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        添加订阅源
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button
+          @click="fetchAllFeeds"
+          :disabled="bulkLoading || feeds.length === 0"
+          class="inline-flex items-center px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ bulkLoading ? '刷新中...' : '全部刷新' }}
+        </button>
+        <button
+          @click="deleteSelectedFeeds"
+          :disabled="bulkLoading || selectedIds.size === 0"
+          class="inline-flex items-center px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          删除所选
+        </button>
+        <button
+          @click="showAddModal = true"
+          class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          添加订阅源
+        </button>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -24,6 +44,14 @@
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
+            <th class="px-6 py-3 text-left">
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                @change="toggleSelectAll"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            </th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">期刊</th>
@@ -35,6 +63,14 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           <tr v-for="feed in feeds" :key="feed.id" class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <input
+                type="checkbox"
+                :checked="selectedIds.has(feed.id)"
+                @change="toggleFeedSelection(feed.id)"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="text-sm font-medium text-gray-900">{{ feed.name }}</div>
             </td>
@@ -182,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { feedApi } from '@/api'
 import type { Feed, FeedCreate } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -194,14 +230,18 @@ const loading = ref(true)
 const showAddModal = ref(false)
 const showEditModal = ref(false)
 const submitting = ref(false)
+const bulkLoading = ref(false)
 const editingId = ref<number | null>(null)
 const fetchingIds = ref(new Set<number>())
+const selectedIds = ref(new Set<number>())
 
 const feedForm = ref<FeedCreate>({
   name: '',
   url: '',
   journal_name: '',
 })
+
+const allSelected = computed(() => feeds.value.length > 0 && selectedIds.value.size === feeds.value.length)
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
@@ -218,11 +258,26 @@ async function loadFeeds() {
   try {
     const { data } = await feedApi.list()
     feeds.value = data
+    selectedIds.value = new Set([...selectedIds.value].filter((id) => data.some((feed) => feed.id === id)))
   } catch (err: any) {
     appStore.error('加载订阅源失败: ' + err.message)
   } finally {
     loading.value = false
   }
+}
+
+function toggleFeedSelection(id: number) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  selectedIds.value = next
+}
+
+function toggleSelectAll() {
+  selectedIds.value = allSelected.value ? new Set() : new Set(feeds.value.map((feed) => feed.id))
 }
 
 function editFeed(feed: Feed) {
@@ -272,6 +327,23 @@ async function deleteFeed(feed: Feed) {
   }
 }
 
+async function deleteSelectedFeeds() {
+  const ids = [...selectedIds.value]
+  if (ids.length === 0) return
+  if (!confirm(`确定要删除选中的 ${ids.length} 个订阅源吗？`)) return
+  bulkLoading.value = true
+  try {
+    const { data } = await feedApi.bulkDelete(ids)
+    appStore.success(`已删除 ${data.deleted_count} 个订阅源`)
+    selectedIds.value = new Set()
+    await loadFeeds()
+  } catch (err: any) {
+    appStore.error('批量删除失败: ' + err.message)
+  } finally {
+    bulkLoading.value = false
+  }
+}
+
 async function toggleFeed(feed: Feed) {
   try {
     await feedApi.update(feed.id, { enabled: !feed.enabled })
@@ -292,6 +364,19 @@ async function fetchFeed(feed: Feed) {
     appStore.error('抓取失败: ' + err.message)
   } finally {
     fetchingIds.value.delete(feed.id)
+  }
+}
+
+async function fetchAllFeeds() {
+  bulkLoading.value = true
+  try {
+    const { data } = await feedApi.fetchAll()
+    appStore.success(`全部刷新完成：${data.feed_count} 个订阅源，新增 ${data.new_papers} 篇论文`)
+    await loadFeeds()
+  } catch (err: any) {
+    appStore.error('全部刷新失败: ' + err.message)
+  } finally {
+    bulkLoading.value = false
   }
 }
 

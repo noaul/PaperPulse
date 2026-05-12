@@ -356,3 +356,35 @@
   - `/`、`/login`、`/dashboard`、`/reports`、`/papers`、`/reading-queue`、`/settings` 均返回 200。
   - `/assets/ReadingQueue-ghrLGspl.js` 返回 200。
   - 未登录访问 `/api/reading-queue` 返回 401，符合认证保护预期。
+
+## 2026-05-12：阶段 19 批量管理、最新抓取分析与持久化
+- 用户要求：
+  - 运行分析只分析抓取的最新文献和未分析的文献。
+  - 订阅源添加全部刷新和批量删除功能。
+  - 论文分析结果可直接添加到阅读队列。
+  - 关键词可批量添加。
+  - 修改完成后推送并在 nc48 上重新部署。
+  - AI 分析结果保存不能每次重新部署就没了。
+- 根因判断：
+  - 当前 `docker-compose.yml` 已将 `./data` 挂载到 `/app/data`，`DB_PATH=/app/data/paperpulse.db`，正常 `docker compose up -d --build` 不应删除 AI 分析结果。
+  - 现有 WebDAV 备份只导出 feeds/keywords，不包含 papers/analysis_results，换机或数据目录误删时无法恢复 AI 分析结果。
+  - `fetch-and-analyze` 已传递本次抓取 `paper_ids`，但手动 `run-analysis` 未传目标，会扫描全部未分析论文。
+- 红灯测试：
+  - `tests.test_bulk_features` 新增订阅源全部刷新、批量删除、关键词批量添加、分析结果入阅读队列测试。
+  - `tests.test_webdav_sync` 新增 WebDAV 导出包含 papers/analysis_results 测试。
+  - `tests.test_workflow_engine.WorkflowEngineTest.test_analyze_new_papers_without_targets_uses_latest_fetch_batch_only` 修改为验证手动分析使用最新抓取批次。
+  - 红灯结果：批量 API 和入队 API 返回 405；WebDAV 导出缺少 `papers`；手动分析分析了旧待分析论文。
+- 已实现：
+  - `latest_fetched_paper_ids` 持久化到 `settings`；单源抓取、全部刷新和 workflow 抓取都会更新最新抓取批次。
+  - `analyze_new_papers()` 未显式传 `paper_ids` 时优先读取最新抓取批次，只分析该批次里尚未分析的论文；老库没有批次记录时保持原有未分析论文兜底逻辑。
+  - 新增 `/api/feeds/fetch-all`、`/api/feeds/bulk-delete`、`/api/keywords/bulk`、`/api/analysis/{id}/add-to-reading-queue`。
+  - WebDAV 导出/导入扩展到 papers 和 analysis_results。
+  - 前端 Feeds 页新增全部刷新、勾选和批量删除；Keywords 页新增批量添加；Analysis 页新增加入阅读队列按钮。
+  - README 补充新增接口、最新抓取分析口径和数据持久化说明。
+- 验证：
+  - 红灯集修复后：`docker run ... python -m unittest tests.test_bulk_features tests.test_webdav_sync tests.test_workflow_engine.WorkflowEngineTest.test_analyze_new_papers_without_targets_uses_latest_fetch_batch_only`：6 tests OK。
+  - 回归：`docker run ... python -m unittest tests.test_bulk_features tests.test_webdav_sync tests.test_reading_queue tests.test_ai_analyzer tests.test_reports tests.test_email_sender tests.test_rss_fetcher tests.test_workflow_engine`：31 tests OK。
+  - `python -m compileall backend\app`：通过。
+  - `npm run build`：通过，生成新前端静态资源。
+  - `docker compose up -d --build`：本地容器 `paperpulse` healthy。
+  - 本地 `/api/health` 返回 OK；`/`、`/login`、`/dashboard`、`/feeds`、`/keywords`、`/analysis`、`/reading-queue`、`/settings` 均返回 200。

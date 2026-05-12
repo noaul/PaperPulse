@@ -79,14 +79,23 @@
               </p>
             </div>
           </div>
-          <a
-            v-if="item.paper_url"
-            :href="item.paper_url"
-            target="_blank"
-            class="text-sm text-blue-600 hover:text-blue-800 flex-shrink-0"
-          >
-            原文 →
-          </a>
+          <div class="flex flex-shrink-0 flex-col items-end gap-2">
+            <button
+              @click="addToReadingQueue(item)"
+              :disabled="queueAddingIds.has(item.id)"
+              class="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-800 hover:bg-indigo-200 disabled:opacity-50"
+            >
+              {{ queueAddingIds.has(item.id) ? '添加中...' : '加入阅读队列' }}
+            </button>
+            <a
+              v-if="item.paper_url"
+              :href="item.paper_url"
+              target="_blank"
+              class="text-sm text-blue-600 hover:text-blue-800"
+            >
+              原文 →
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -123,6 +132,7 @@ const loading = ref(true)
 const currentPage = ref(1)
 const totalPages = ref(1)
 const totalAnalyses = ref(0)
+const queueAddingIds = ref(new Set<number>())
 const pageSize = 20
 
 const filters = reactive({
@@ -157,6 +167,22 @@ async function loadAnalyses(page: number) {
     appStore.error('加载分析结果失败: ' + err.message)
   } finally {
     loading.value = false
+  }
+}
+
+async function addToReadingQueue(item: Analysis) {
+  const next = new Set(queueAddingIds.value)
+  next.add(item.id)
+  queueAddingIds.value = next
+  try {
+    await analysisApi.addToReadingQueue(item.id)
+    appStore.success('已加入阅读队列')
+  } catch (err: any) {
+    appStore.error('加入阅读队列失败: ' + err.message)
+  } finally {
+    const done = new Set(queueAddingIds.value)
+    done.delete(item.id)
+    queueAddingIds.value = done
   }
 }
 

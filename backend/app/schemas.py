@@ -16,6 +16,9 @@ class FeedUpdate(BaseModel):
     journal_name: Optional[str] = None
     enabled: Optional[bool] = None
 
+class FeedBulkDelete(BaseModel):
+    ids: list[int] = Field(default_factory=list)
+
 class FeedOut(BaseModel):
     id: int
     name: str
@@ -92,6 +95,11 @@ class ReadingQueueListOut(BaseModel):
 # Keyword
 class KeywordCreate(BaseModel):
     word: str
+    category: str = "default"
+    enabled: bool = True
+
+class KeywordBulkCreate(BaseModel):
+    text: str
     category: str = "default"
     enabled: bool = True
 

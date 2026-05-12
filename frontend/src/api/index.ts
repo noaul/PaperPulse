@@ -60,13 +60,22 @@ export interface FeedUpdate {
   enabled?: boolean
 }
 
+export interface FeedFetchAllResult {
+  success: boolean
+  feed_count: number
+  new_papers: number
+  paper_ids: number[]
+  feeds: Array<{ feed_id: number; name: string; new_papers: number }>
+}
+
 export const feedApi = {
   list: () => api.get<Feed[]>('/feeds'),
   create: (data: FeedCreate) => api.post<Feed>('/feeds', data),
   update: (id: number, data: FeedUpdate) => api.put<Feed>(`/feeds/${id}`, data),
   delete: (id: number) => api.delete(`/feeds/${id}`),
   fetch: (id: number) => api.post(`/feeds/${id}/fetch`),
-  fetchAll: () => api.post('/feeds/fetch-all'),
+  fetchAll: () => api.post<FeedFetchAllResult>('/feeds/fetch-all'),
+  bulkDelete: (ids: number[]) => api.post('/feeds/bulk-delete', { ids }),
 }
 
 // ==================== Papers ====================
@@ -172,9 +181,19 @@ export interface KeywordUpdate {
   enabled?: boolean
 }
 
+export interface KeywordBulkResult {
+  success: boolean
+  created_count: number
+  skipped_count: number
+  created: Keyword[]
+  skipped_words: string[]
+}
+
 export const keywordApi = {
   list: () => api.get<Keyword[]>('/keywords'),
   create: (data: KeywordCreate) => api.post<Keyword>('/keywords', data),
+  bulkCreate: (data: { text: string; category: string; enabled?: boolean }) =>
+    api.post<KeywordBulkResult>('/keywords/bulk', data),
   update: (id: number, data: KeywordUpdate) => api.put<Keyword>(`/keywords/${id}`, data),
   delete: (id: number) => api.delete(`/keywords/${id}`),
 }
@@ -262,6 +281,8 @@ export const analysisApi = {
   fetchAndAnalyze: () => api.post('/analysis/fetch-and-analyze'),
   fetchAndAnalyzeBackground: () => api.post('/analysis/fetch-and-analyze-background'),
   sendReport: () => api.post('/analysis/send-report'),
+  addToReadingQueue: (id: number) =>
+    api.post<ReadingQueueItem>(`/analysis/${id}/add-to-reading-queue`),
 }
 
 // ==================== Reports ====================

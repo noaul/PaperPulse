@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select
 
 from app.database import Base, engine, SessionLocal
-from app.models import Keyword, Paper, Setting, WorkflowExecution, WorkflowExecutionLog
+from app.models import AnalysisResult, Keyword, Paper, Setting, WorkflowExecution, WorkflowExecutionLog
 from app.routers.executions import set_execution_control
 from app.services import ai_analyzer
 from app.services.ai_analyzer import analyze_new_papers
@@ -148,7 +148,7 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
         finally:
             ai_analyzer.request_chat_completion = original_request
 
-    async def test_analyze_new_papers_without_targets_analyzes_all_pending_papers(self):
+    async def test_analyze_new_papers_without_targets_uses_latest_fetch_batch_only(self):
         original_request = ai_analyzer.request_chat_completion
 
         async def fake_request_chat_completion(config, messages, max_tokens=500):
@@ -163,10 +163,26 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
                 ))
                 db.add(Keyword(word="battery", enabled=True))
                 papers = [
-                    Paper(title=f"Pending paper {idx}", url=f"https://example.com/pending-{idx}")
-                    for idx in range(55)
+                    Paper(title="Latest pending paper", url="https://example.com/latest-pending"),
+                    Paper(title="Latest already analyzed paper", url="https://example.com/latest-analyzed"),
+                    Paper(title="Older pending paper", url="https://example.com/older-pending"),
                 ]
                 db.add_all(papers)
+                await db.commit()
+                for paper in papers:
+                    await db.refresh(paper)
+
+                keyword = (await db.execute(select(Keyword).where(Keyword.word == "battery"))).scalar_one()
+                db.add(AnalysisResult(
+                    paper_id=papers[1].id,
+                    keyword_id=keyword.id,
+                    relevance_score=8,
+                    summary="已分析",
+                ))
+                db.add(Setting(
+                    key="latest_fetched_paper_ids",
+                    value=json.dumps([papers[0].id, papers[1].id]),
+                ))
                 await db.commit()
 
                 progress_events = []
@@ -180,9 +196,10 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
                     raise_errors=True,
                 )
 
-                self.assertEqual(55, len(results))
-                self.assertEqual(55, progress_events[0]["analysis_total"])
-                self.assertEqual(55, progress_events[-1]["analysis_analyzed"])
+                self.assertEqual(1, len(results))
+                self.assertEqual(1, progress_events[0]["analysis_total"])
+                self.assertEqual(1, progress_events[-1]["analysis_analyzed"])
+                self.assertEqual(papers[0].id, results[0].paper_id)
         finally:
             ai_analyzer.request_chat_completion = original_request
 
