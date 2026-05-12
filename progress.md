@@ -343,3 +343,16 @@
   - 使用本地 auth token 端到端验证阅读队列 API：创建、未读+标签筛选、更新已读、已读+标签筛选、删除、删除后确认均通过。
 - Git:
   - 已提交：`7d9d7e6 feat: add reading queue`。
+
+### 阶段 18 nc48 重新部署
+- 用户要求：在 nc48 上重新部署 PaperPulse。
+- nc48 项目目录：`/opt/PaperPulse`。
+- 已执行：`git pull --ff-only`，从 `4baeeac` fast-forward 到 `33be432`。
+- 已执行：`docker compose up -d --build`，镜像重新构建，容器 `paperpulse` 重新创建并启动。
+- 验证结果：
+  - 当前提交：`33be432`。
+  - 容器状态：`paperpulse` healthy，端口 `127.0.0.1:18095->8000`。
+  - `GET /api/health` 返回 `{"status":"ok","version":"1.0.0"}`。
+  - `/`、`/login`、`/dashboard`、`/reports`、`/papers`、`/reading-queue`、`/settings` 均返回 200。
+  - `/assets/ReadingQueue-ghrLGspl.js` 返回 200。
+  - 未登录访问 `/api/reading-queue` 返回 401，符合认证保护预期。
