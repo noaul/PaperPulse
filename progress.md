@@ -388,3 +388,15 @@
   - `npm run build`：通过，生成新前端静态资源。
   - `docker compose up -d --build`：本地容器 `paperpulse` healthy。
   - 本地 `/api/health` 返回 OK；`/`、`/login`、`/dashboard`、`/feeds`、`/keywords`、`/analysis`、`/reading-queue`、`/settings` 均返回 200。
+- Git:
+  - 已提交：`db8fa3c feat: add batch management and persistent analysis flow`。
+  - 已推送：`origin/main`。
+- nc48 部署：
+  - 部署前当前提交 `33be432`，`analysis_results` 数量 24。
+  - `/opt/PaperPulse` 已 fast-forward 到 `db8fa3c`。
+  - 已执行 `docker compose up -d --build`，容器 `paperpulse` healthy。
+  - 部署后 `analysis_results` 数量仍为 24，论文数量 379，确认重建未清空 AI 分析结果。
+  - `/api/health` 返回 OK。
+  - `/`、`/login`、`/dashboard`、`/feeds`、`/keywords`、`/analysis`、`/reading-queue`、`/settings` 均返回 200。
+  - 新构建资源 `/assets/Feeds-CgYkYEKN.js`、`/assets/Keywords-frsjMjOC.js`、`/assets/Analysis-CEU_-bNo.js`、`/assets/index-BmVXD3dP.css` 均返回 200。
+  - 未登录访问 `/api/feeds/fetch-all` 返回 401，认证保护正常。
