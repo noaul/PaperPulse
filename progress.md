@@ -400,3 +400,30 @@
   - `/`、`/login`、`/dashboard`、`/feeds`、`/keywords`、`/analysis`、`/reading-queue`、`/settings` 均返回 200。
   - 新构建资源 `/assets/Feeds-CgYkYEKN.js`、`/assets/Keywords-frsjMjOC.js`、`/assets/Analysis-CEU_-bNo.js`、`/assets/index-BmVXD3dP.css` 均返回 200。
   - 未登录访问 `/api/feeds/fetch-all` 返回 401，认证保护正常。
+
+## 2026-05-12：阶段 20 Zotero 9 插件原型
+- 用户要求：
+  - 做一个 Zotero 插件，读取 Zotero feeds/条目，调用 PaperPulse 后端作为分析服务，然后把评分、摘要、标签或笔记写回 Zotero 条目。
+  - 插件放在 `https://github.com/uovme/PaperPulse` 的单独文件夹。
+- 官方文档确认：
+  - Zotero 9 是当前 Zotero 发布版。
+  - Zotero 7+ 插件结构继续使用 bootstrapped 插件：`manifest.json`、`bootstrap.js`、主逻辑 JS、`prefs.js`。
+  - Zotero feeds 可以订阅 RSS/Atom，条目可保存到库中；插件侧按普通 Zotero item 分析已选择条目。
+- 红灯测试：
+  - 新增 `backend/tests/test_zotero.py`。
+  - 当前 `/api/zotero/analyze` 返回 405，确认后端服务端点未实现。
+- 已实现：
+  - 新增 `backend/app/routers/zotero.py`，提供 `POST /api/zotero/analyze`。
+  - 后端接收 Zotero 条目的标题、摘要、URL、DOI、作者、标签，复用 PaperPulse AI 配置和关键词分析，返回评分、匹配关键词、摘要、Zotero 标签和 note HTML。
+  - 分析会创建或复用 PaperPulse `Paper`，并持久化 `AnalysisResult`。
+  - 新增独立 `zotero-plugin/` 文件夹：`manifest.json`、`bootstrap.js`、`prefs.js`、`content/paperpulse.js`、`scripts/build-xpi.ps1`、`README.md`。
+  - 插件菜单入口：`Tools -> PaperPulse: Analyze Selected Items`。
+  - 插件写回：根据后端返回添加 `PaperPulse:*` 标签和子笔记。
+- 验证：
+  - `docker run ... python -m unittest tests.test_zotero`：2 tests OK。
+  - `docker run ... python -m unittest tests.test_zotero tests.test_bulk_features tests.test_webdav_sync tests.test_reading_queue tests.test_ai_analyzer tests.test_reports tests.test_email_sender tests.test_rss_fetcher tests.test_workflow_engine`：33 tests OK。
+  - `python -m compileall backend\app`：通过。
+  - `zotero-plugin/manifest.json` 可被 `ConvertFrom-Json` 解析。
+  - `zotero-plugin/scripts/build-xpi.ps1` 初次失败：PowerShell `Compress-Archive` 不支持 `.xpi` 扩展名；修复为先生成 `.zip` 再重命名为 `.xpi`。
+  - 重新打包成功：`zotero-plugin/dist/paperpulse-zotero-analyzer.xpi`。
+  - XPI 包内容检查：`content/paperpulse.js`、`bootstrap.js`、`manifest.json`、`prefs.js`、`README.md`。
