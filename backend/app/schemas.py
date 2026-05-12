@@ -136,6 +136,27 @@ class AnalysisOut(BaseModel):
         from_attributes = True
 
 
+class ZoteroAnalyzeRequest(BaseModel):
+    zotero_key: Optional[str] = None
+    title: str = Field(min_length=1, max_length=1024)
+    abstract: Optional[str] = ""
+    url: Optional[str] = ""
+    authors: Optional[str] = ""
+    doi: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class ZoteroAnalyzeResponse(BaseModel):
+    success: bool
+    paper_id: int
+    analysis_ids: list[int] = Field(default_factory=list)
+    relevance_score: float
+    matched_keywords: list[str] = Field(default_factory=list)
+    summary: str
+    zotero_tags: list[str] = Field(default_factory=list)
+    note_html: str
+
+
 # Settings
 class AIConfig(BaseModel):
     api_base: str = "https://api.openai.com/v1"

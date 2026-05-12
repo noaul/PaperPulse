@@ -31,6 +31,7 @@
 - **论文分类** — 按期刊、关键词、相关性分值筛选
 - **链接清洗** — 自动移除 ScienceDirect `dgcid`、`utm_*` 等 RSS 跟踪参数，保留干净原文链接
 - **Web UI** — 仪表盘、订阅管理、论文浏览、关键词管理、设置
+- **Zotero 插件原型** — `zotero-plugin/` 可将 Zotero 9 选中条目发送到 PaperPulse 后端分析，并写回标签/笔记
 
 ### 快速开始
 
@@ -96,6 +97,7 @@ npm run dev
 - `POST /api/analysis/run-background` — 后台运行最新抓取批次中尚未分析论文的汇总分析
 - `POST /api/analysis/fetch-and-analyze-background` — 后台抓取并分析，本次进度总数等于新抓取论文数
 - `POST /api/analysis/{id}/add-to-reading-queue` — 将某条 AI 分析结果加入阅读队列
+- `POST /api/zotero/analyze` — Zotero 插件调用的分析入口，返回评分、标签和笔记 HTML
 - `POST /api/feeds/fetch-all` — 刷新全部启用的订阅源，并记录最新抓取批次
 - `POST /api/feeds/bulk-delete` — 批量删除订阅源
 - `POST /api/keywords/bulk` — 批量添加关键词，支持换行、逗号、分号分隔
@@ -110,6 +112,19 @@ npm run dev
 - `DELETE /api/reading-queue/{id}` — 删除条目
 
 说明：暂停/取消采用协作式控制，当前正在请求中的单篇 AI 分析会先完成，然后再暂停或取消后续论文。
+
+### Zotero 插件
+
+插件原型位于 `zotero-plugin/`，目标为 Zotero 9。它通过 `Tools -> PaperPulse: Analyze Selected Items` 读取 Zotero 当前选中的常规条目，调用 PaperPulse 后端 `/api/zotero/analyze`，再将 `PaperPulse:*` 标签和 AI 分析笔记写回 Zotero。
+
+构建：
+
+```powershell
+cd zotero-plugin
+powershell -ExecutionPolicy Bypass -File .\scripts\build-xpi.ps1
+```
+
+输出文件：`zotero-plugin/dist/paperpulse-zotero-analyzer.xpi`。
 
 ---
 
@@ -130,6 +145,7 @@ npm run dev
 - **Paper Classification** — Filter by journal, keyword, relevance score
 - **Clean Source Links** — Removes RSS tracking parameters such as ScienceDirect `dgcid` and `utm_*`
 - **Web UI** — Dashboard, feed management, paper browser, keyword management, settings
+- **Zotero Plugin Prototype** — `zotero-plugin/` sends selected Zotero 9 items to PaperPulse and writes tags/notes back
 
 ### Quick Start
 
@@ -168,6 +184,7 @@ Application data is stored in `./data/paperpulse.db`; image rebuilds do not remo
 - `POST /api/analysis/run-background` — Run background analysis for unanalyzed papers from the latest fetch batch
 - `POST /api/analysis/fetch-and-analyze-background` — Fetch and analyze in the background; total count equals newly fetched papers
 - `POST /api/analysis/{id}/add-to-reading-queue` — Add an AI analysis result to the Reading Queue
+- `POST /api/zotero/analyze` — Analysis endpoint used by the Zotero plugin
 - `POST /api/feeds/fetch-all` — Refresh all enabled feeds and persist the latest fetch batch
 - `POST /api/feeds/bulk-delete` — Delete feeds in bulk
 - `POST /api/keywords/bulk` — Bulk-add keywords separated by newlines, commas, or semicolons

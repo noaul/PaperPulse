@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "PaperPulse Zotero Analyzer",
+  "version": "0.1.0",
+  "description": "Analyze Zotero feed/library items with a PaperPulse backend and write scores, tags, and notes back to Zotero.",
+  "homepage_url": "https://github.com/uovme/PaperPulse",
+  "applications": {
+    "zotero": {
+      "id": "paperpulse-zotero-analyzer@uovme.github.io",
+      "update_url": "https://github.com/uovme/PaperPulse/releases/latest/download/paperpulse-zotero-analyzer-update.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "9.*"
+    }
+  }
+}
