@@ -427,3 +427,6 @@
   - `zotero-plugin/scripts/build-xpi.ps1` 初次失败：PowerShell `Compress-Archive` 不支持 `.xpi` 扩展名；修复为先生成 `.zip` 再重命名为 `.xpi`。
   - 重新打包成功：`zotero-plugin/dist/paperpulse-zotero-analyzer.xpi`。
   - XPI 包内容检查：`content/paperpulse.js`、`bootstrap.js`、`manifest.json`、`prefs.js`、`README.md`。
+- Git:
+  - 已提交并推送：`3e4458b feat: add zotero analyzer plugin`。
+  - `zotero-plugin/dist/` 已由 `zotero-plugin/.gitignore` 排除，仓库提交源码和构建脚本，不提交可再生成的 XPI。
