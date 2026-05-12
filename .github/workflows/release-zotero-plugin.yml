@@ -1,0 +1,32 @@
+name: Release Zotero Plugin
+
+on:
+  push:
+    tags:
+      - "zotero-plugin-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Zotero XPI
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\zotero-plugin\scripts\build-xpi.ps1
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release create $tag `
+            ".\zotero-plugin\dist\paperpulse-zotero-analyzer.xpi" `
+            --repo "${{ github.repository }}" `
+            --title "PaperPulse Zotero Analyzer $tag" `
+            --notes "Zotero 9 plugin build for PaperPulse. Includes Tools menu actions for analysis and settings."
