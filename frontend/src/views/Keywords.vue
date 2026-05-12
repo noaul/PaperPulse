@@ -3,39 +3,74 @@
     <!-- Header with Add Form -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 class="text-lg font-semibold text-gray-800 mb-4">添加关键词</h2>
-      <form @submit.prevent="addKeyword" class="flex flex-wrap gap-3 items-end">
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-sm font-medium text-gray-700 mb-1">关键词</label>
-          <input
-            v-model="newKeyword.word"
-            type="text"
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-            placeholder="输入关键词..."
-          />
-        </div>
-        <div class="w-48">
-          <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
-          <input
-            v-model="newKeyword.category"
-            type="text"
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-            placeholder="如：研究方向"
-            list="category-suggestions"
-          />
-          <datalist id="category-suggestions">
-            <option v-for="cat in existingCategories" :key="cat" :value="cat" />
-          </datalist>
-        </div>
-        <button
-          type="submit"
-          :disabled="adding"
-          class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {{ adding ? '添加中...' : '添加' }}
-        </button>
-      </form>
+      <div class="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
+        <form @submit.prevent="addKeyword" class="flex flex-wrap gap-3 items-end">
+          <div class="flex-1 min-w-[200px]">
+            <label class="block text-sm font-medium text-gray-700 mb-1">关键词</label>
+            <input
+              v-model="newKeyword.word"
+              type="text"
+              required
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              placeholder="输入关键词..."
+            />
+          </div>
+          <div class="w-48">
+            <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+            <input
+              v-model="newKeyword.category"
+              type="text"
+              required
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              placeholder="如：研究方向"
+              list="category-suggestions"
+            />
+            <datalist id="category-suggestions">
+              <option v-for="cat in existingCategories" :key="cat" :value="cat" />
+            </datalist>
+          </div>
+          <button
+            type="submit"
+            :disabled="adding"
+            class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {{ adding ? '添加中...' : '添加' }}
+          </button>
+        </form>
+
+        <form @submit.prevent="addKeywordsBulk" class="space-y-3">
+          <div class="grid gap-3 md:grid-cols-[1fr_12rem]">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">批量关键词</label>
+              <textarea
+                v-model="bulkText"
+                rows="3"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm resize-y"
+                placeholder="每行一个，也可用逗号或分号分隔"
+              ></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">批量分类</label>
+              <input
+                v-model="bulkCategory"
+                type="text"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                placeholder="如：研究方向"
+                list="category-suggestions"
+              />
+              <button
+                type="submit"
+                :disabled="bulkAdding"
+                class="mt-3 w-full px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {{ bulkAdding ? '批量添加中...' : '批量添加' }}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -178,9 +213,12 @@ const appStore = useAppStore()
 const keywords = ref<Keyword[]>([])
 const loading = ref(true)
 const adding = ref(false)
+const bulkAdding = ref(false)
 const editingId = ref<number | null>(null)
 
 const newKeyword = ref({ word: '', category: '' })
+const bulkText = ref('')
+const bulkCategory = ref('default')
 const editForm = ref({ word: '', category: '' })
 
 const existingCategories = computed(() => {
@@ -223,6 +261,25 @@ async function addKeyword() {
     appStore.error('添加失败: ' + err.message)
   } finally {
     adding.value = false
+  }
+}
+
+async function addKeywordsBulk() {
+  bulkAdding.value = true
+  try {
+    const { data } = await keywordApi.bulkCreate({
+      text: bulkText.value,
+      category: bulkCategory.value,
+      enabled: true,
+    })
+    const skipped = data.skipped_count ? `，跳过 ${data.skipped_count} 个重复项` : ''
+    appStore.success(`已添加 ${data.created_count} 个关键词${skipped}`)
+    bulkText.value = ''
+    await loadKeywords()
+  } catch (err: any) {
+    appStore.error('批量添加失败: ' + err.message)
+  } finally {
+    bulkAdding.value = false
   }
 }
 

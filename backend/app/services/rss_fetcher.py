@@ -1,11 +1,12 @@
 import feedparser
 import html
+import json
 import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..models import Feed, Paper
+from ..models import Feed, Paper, Setting
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ TRACKING_QUERY_PARAMS = {
     "ref",
     "ref_src",
 }
+
+LATEST_FETCHED_PAPER_IDS_KEY = "latest_fetched_paper_ids"
 
 
 def parse_date(entry) -> datetime | None:
@@ -162,6 +165,43 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
     return new_papers
 
 
+async def save_latest_fetched_paper_ids(db: AsyncSession, paper_ids: list[int]) -> None:
+    normalized = []
+    for paper_id in paper_ids:
+        if paper_id is not None and paper_id not in normalized:
+            normalized.append(int(paper_id))
+
+    setting = await db.get(Setting, LATEST_FETCHED_PAPER_IDS_KEY)
+    value = json.dumps(normalized)
+    if setting:
+        setting.value = value
+    else:
+        db.add(Setting(key=LATEST_FETCHED_PAPER_IDS_KEY, value=value))
+    await db.commit()
+
+
+async def get_latest_fetched_paper_ids(db: AsyncSession) -> list[int] | None:
+    setting = await db.get(Setting, LATEST_FETCHED_PAPER_IDS_KEY)
+    if not setting:
+        return None
+    try:
+        parsed = json.loads(setting.value or "[]")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+
+    ids = []
+    for value in parsed:
+        try:
+            paper_id = int(value)
+        except (TypeError, ValueError):
+            continue
+        if paper_id not in ids:
+            ids.append(paper_id)
+    return ids
+
+
 async def fetch_all_feeds(db: AsyncSession) -> list[Paper]:
     result = await db.execute(select(Feed).where(Feed.enabled == True))
     feeds = result.scalars().all()
@@ -169,4 +209,5 @@ async def fetch_all_feeds(db: AsyncSession) -> list[Paper]:
     for feed in feeds:
         papers = await fetch_feed(db, feed)
         all_papers.extend(papers)
+    await save_latest_fetched_paper_ids(db, [paper.id for paper in all_papers if paper.id is not None])
     return all_papers
