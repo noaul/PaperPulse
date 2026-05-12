@@ -175,8 +175,8 @@
 - [x] 实现 `/api/zotero/analyze`
 - [x] 新增独立 `zotero-plugin/` 文件夹
 - [x] 本地测试、插件打包校验
-- [ ] 提交并推送 GitHub
-- **状态：** in_progress
+- [x] 提交并推送 GitHub
+- **状态：** complete
 
 ## 关键问题
 1. 如何提升项目复杂度和工程化程度，同时不破坏当前功能。
