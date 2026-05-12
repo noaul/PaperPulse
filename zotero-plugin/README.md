@@ -4,7 +4,8 @@ Zotero 9 plugin prototype for sending selected Zotero items to a PaperPulse back
 
 ## What It Does
 
-- Adds `Tools -> PaperPulse: Analyze Selected Items`.
+- Adds `Tools -> PaperPulse -> Analyze Selected Items`.
+- Adds `Tools -> PaperPulse -> Settings` as a fallback configuration entry.
 - Adds a `PaperPulse` pane in Zotero Settings for backend URL, auth token, minimum tag score, and write-back options.
 - Reads selected regular Zotero items, including feed-saved items.
 - Sends title, abstract, URL, DOI, authors, tags, and Zotero key to `POST /api/zotero/analyze`.
@@ -21,7 +22,7 @@ Defaults are in `prefs.js`:
 - `extensions.paperpulse.addNote`: `true`
 - `extensions.paperpulse.addTags`: `true`
 
-You can edit these values from Zotero Settings in the `PaperPulse` pane.
+You can edit these values from Zotero Settings in the `PaperPulse` pane or from `Tools -> PaperPulse -> Settings`.
 
 ## Build an XPI
 

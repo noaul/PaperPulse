@@ -3,24 +3,40 @@ var PaperPulse = PaperPulse || {};
 PaperPulse.ZoteroAnalyzer = class {
   constructor(rootURI) {
     this.rootURI = rootURI;
-    this.menuItems = [];
-    this.preferencePaneID = null;
+    this.pluginID = "paperpulse-zotero-analyzer@uovme.github.io";
+    this.preferencePaneID = "paperpulse-zotero-analyzer-preferences";
+    this.menuID = "paperpulse-zotero-analyzer-tools-menu";
+    this.menuItemsByWindow = new Map();
   }
 
   async startup() {
     this.registerPrefs();
-    await this.registerPreferencePane();
-    this.registerMenu();
+    await this.safeRun("register preference pane", () => this.registerPreferencePane());
+    for (const window of Zotero.getMainWindows()) {
+      this.safeRun("register window menu", () => this.onMainWindowLoad(window));
+    }
   }
 
   async shutdown() {
-    for (const item of this.menuItems) {
-      item.remove();
+    for (const items of this.menuItemsByWindow.values()) {
+      for (const item of items) {
+        item.remove();
+      }
     }
-    this.menuItems = [];
+    this.menuItemsByWindow.clear();
     if (this.preferencePaneID && Zotero.PreferencePanes?.unregister) {
       Zotero.PreferencePanes.unregister(this.preferencePaneID);
       this.preferencePaneID = null;
+    }
+  }
+
+  safeRun(label, fn) {
+    try {
+      return fn();
+    } catch (error) {
+      Zotero.logError(error);
+      Zotero.debug(`[PaperPulse] failed to ${label}: ${error}`);
+      return null;
     }
   }
 
@@ -43,20 +59,50 @@ PaperPulse.ZoteroAnalyzer = class {
     }
   }
 
-  registerMenu() {
-    const document = Zotero.getMainWindow().document;
+  onMainWindowLoad(window) {
+    this.registerLegacyMenu(window);
+  }
+
+  onMainWindowUnload(window) {
+    const items = this.menuItemsByWindow.get(window);
+    if (!items) {
+      return;
+    }
+    for (const item of items) {
+      item.remove();
+    }
+    this.menuItemsByWindow.delete(window);
+  }
+
+  registerLegacyMenu(window) {
+    const document = window.document;
     const menu = document.getElementById("menu_ToolsPopup");
-    if (!menu || document.getElementById("paperpulse-analyze-selected")) {
+    if (!menu || document.getElementById("paperpulse-tools-menu")) {
       return;
     }
 
-    const analyzeItem = document.createXULElement("menuitem");
-    analyzeItem.id = "paperpulse-analyze-selected";
-    analyzeItem.setAttribute("label", "PaperPulse: Analyze Selected Items");
-    analyzeItem.addEventListener("command", () => this.analyzeSelectedItems());
+    const submenu = document.createXULElement("menu");
+    submenu.id = "paperpulse-tools-menu";
+    submenu.setAttribute("label", "PaperPulse");
 
-    menu.appendChild(analyzeItem);
-    this.menuItems.push(analyzeItem);
+    const popup = document.createXULElement("menupopup");
+    const analyzeItem = this.createMenuItem(document, "paperpulse-analyze-selected", "Analyze Selected Items");
+    analyzeItem.addEventListener("command", () => this.analyzeSelectedItems());
+    const settingsItem = this.createMenuItem(document, "paperpulse-settings", "Settings");
+    settingsItem.addEventListener("command", () => this.openSettings());
+
+    popup.appendChild(analyzeItem);
+    popup.appendChild(settingsItem);
+    submenu.appendChild(popup);
+    menu.appendChild(submenu);
+    this.menuItemsByWindow.set(window, [submenu]);
+  }
+
+  createMenuItem(document, id, label) {
+    const item = document.createXULElement("menuitem");
+    item.id = id;
+    item.setAttribute("label", label);
+    return item;
   }
 
   async registerPreferencePane() {
@@ -66,7 +112,7 @@ PaperPulse.ZoteroAnalyzer = class {
     }
 
     this.preferencePaneID = await Zotero.PreferencePanes.register({
-      pluginID: "paperpulse-zotero-analyzer@uovme.github.io",
+      pluginID: this.pluginID,
       id: "paperpulse-zotero-analyzer-preferences",
       label: "PaperPulse",
       src: `${this.rootURI}prefs.xhtml`,
@@ -100,6 +146,28 @@ PaperPulse.ZoteroAnalyzer = class {
     return this.getPrefBranch().getIntPref("minScoreToTag", 5);
   }
 
+  setBackendURL(value) {
+    this.getPrefBranch().setStringPref("backendURL", String(value || "").trim() || "http://127.0.0.1:18095");
+  }
+
+  setAuthToken(value) {
+    this.getPrefBranch().setStringPref("authToken", String(value || "").trim());
+  }
+
+  setMinScoreToTag(value) {
+    const parsed = Number.parseInt(value, 10);
+    const normalized = Number.isFinite(parsed) ? Math.max(0, Math.min(10, parsed)) : 5;
+    this.getPrefBranch().setIntPref("minScoreToTag", normalized);
+  }
+
+  setAddNote(value) {
+    this.getPrefBranch().setBoolPref("addNote", !!value);
+  }
+
+  setAddTags(value) {
+    this.getPrefBranch().setBoolPref("addTags", !!value);
+  }
+
   getSelectedItems() {
     const pane = Zotero.getActiveZoteroPane();
     if (!pane) {
@@ -128,6 +196,53 @@ PaperPulse.ZoteroAnalyzer = class {
     }
 
     this.alert("PaperPulse", `Analyzed ${analyzed} item(s). Failed: ${failed}.`);
+  }
+
+  openSettings() {
+    if (this.preferencePaneID && Zotero.Utilities?.Internal?.openPreferences) {
+      Zotero.Utilities.Internal.openPreferences(this.preferencePaneID);
+      return;
+    }
+    this.openSettingsDialog();
+  }
+
+  openSettingsDialog() {
+    const prompts = Services.prompt;
+    const backend = { value: this.getBackendURL() };
+    if (!prompts.prompt(null, "PaperPulse Settings", "Backend URL", backend, null, {})) {
+      return;
+    }
+    const token = { value: this.getAuthToken() };
+    if (!prompts.promptPassword(null, "PaperPulse Settings", "Auth token (leave empty if not required)", token, null, {})) {
+      return;
+    }
+    const minScore = { value: String(this.getMinScoreToTag()) };
+    if (!prompts.prompt(null, "PaperPulse Settings", "Minimum tag score (0-10)", minScore, null, {})) {
+      return;
+    }
+    const addTags = { value: this.shouldAddTags() };
+    prompts.confirmCheck(
+      null,
+      "PaperPulse Settings",
+      "Write PaperPulse tags to analyzed items.",
+      "Enable tag write-back",
+      addTags
+    );
+    const addNote = { value: this.shouldAddNote() };
+    prompts.confirmCheck(
+      null,
+      "PaperPulse Settings",
+      "Add a PaperPulse analysis child note.",
+      "Enable note write-back",
+      addNote
+    );
+
+    this.setBackendURL(backend.value);
+    this.setAuthToken(token.value);
+    this.setMinScoreToTag(minScore.value);
+    this.setAddTags(addTags.value);
+    this.setAddNote(addNote.value);
+    this.alert("PaperPulse", "Settings saved.");
   }
 
   async analyzeItem(item) {

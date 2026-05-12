@@ -1,3 +1,4 @@
+<vbox id="zotero-prefpane-paperpulse" onload="Zotero.PaperPulse_Preferences.init(event)">
 <groupbox class="paperpulse-pref-group" xmlns:html="http://www.w3.org/1999/xhtml">
   <label><html:h2>PaperPulse</html:h2></label>
   <description>Configure the PaperPulse backend used to analyze selected Zotero items.</description>
@@ -26,9 +27,10 @@
 
 <groupbox class="paperpulse-pref-group" xmlns:html="http://www.w3.org/1999/xhtml">
   <label><html:h2>Write Back</html:h2></label>
-  <checkbox label="Write PaperPulse tags to analyzed items" preference="extensions.paperpulse.addTags"/>
-  <checkbox label="Add a PaperPulse analysis child note" preference="extensions.paperpulse.addNote"/>
+  <checkbox native="true" label="Write PaperPulse tags to analyzed items" preference="extensions.paperpulse.addTags"/>
+  <checkbox native="true" label="Add a PaperPulse analysis child note" preference="extensions.paperpulse.addNote"/>
   <html:p class="paperpulse-pref-note">
     Use Tools -> PaperPulse: Analyze Selected Items after selecting one or more regular Zotero items.
   </html:p>
 </groupbox>
+</vbox>
