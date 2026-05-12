@@ -5,16 +5,16 @@ PaperPulse.ZoteroAnalyzer = class {
     this.rootURI = rootURI;
     this.pluginID = "paperpulse-zotero-analyzer@uovme.github.io";
     this.preferencePaneID = "paperpulse-zotero-analyzer-preferences";
-    this.menuID = "paperpulse-zotero-analyzer-tools-menu";
+    this.preferencePaneRegistered = false;
     this.menuItemsByWindow = new Map();
   }
 
   async startup() {
     this.registerPrefs();
-    await this.safeRun("register preference pane", () => this.registerPreferencePane());
     for (const window of Zotero.getMainWindows()) {
-      this.safeRun("register window menu", () => this.onMainWindowLoad(window));
+      await this.safeRun("register window menu", () => this.onMainWindowLoad(window));
     }
+    await this.safeRun("register preference pane", () => this.registerPreferencePane());
   }
 
   async shutdown() {
@@ -24,15 +24,15 @@ PaperPulse.ZoteroAnalyzer = class {
       }
     }
     this.menuItemsByWindow.clear();
-    if (this.preferencePaneID && Zotero.PreferencePanes?.unregister) {
+    if (this.preferencePaneRegistered && Zotero.PreferencePanes?.unregister) {
       Zotero.PreferencePanes.unregister(this.preferencePaneID);
-      this.preferencePaneID = null;
+      this.preferencePaneRegistered = false;
     }
   }
 
-  safeRun(label, fn) {
+  async safeRun(label, fn) {
     try {
-      return fn();
+      return await fn();
     } catch (error) {
       Zotero.logError(error);
       Zotero.debug(`[PaperPulse] failed to ${label}: ${error}`);
@@ -113,13 +113,14 @@ PaperPulse.ZoteroAnalyzer = class {
 
     this.preferencePaneID = await Zotero.PreferencePanes.register({
       pluginID: this.pluginID,
-      id: "paperpulse-zotero-analyzer-preferences",
+      id: this.preferencePaneID,
       label: "PaperPulse",
       src: `${this.rootURI}prefs.xhtml`,
       scripts: [`${this.rootURI}content/preferences.js`],
       stylesheets: [`${this.rootURI}content/preferences.css`],
       helpURL: "https://github.com/uovme/PaperPulse/tree/main/zotero-plugin",
     });
+    this.preferencePaneRegistered = true;
   }
 
   getPrefBranch() {
@@ -199,9 +200,14 @@ PaperPulse.ZoteroAnalyzer = class {
   }
 
   openSettings() {
-    if (this.preferencePaneID && Zotero.Utilities?.Internal?.openPreferences) {
-      Zotero.Utilities.Internal.openPreferences(this.preferencePaneID);
-      return;
+    if (this.preferencePaneRegistered && Zotero.Utilities?.Internal?.openPreferences) {
+      try {
+        Zotero.Utilities.Internal.openPreferences(this.preferencePaneID);
+        return;
+      } catch (error) {
+        Zotero.logError(error);
+        Zotero.debug(`[PaperPulse] failed to open preferences pane: ${error}`);
+      }
     }
     this.openSettingsDialog();
   }
