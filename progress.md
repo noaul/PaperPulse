@@ -248,6 +248,58 @@
     - `/api/health` 返回 `{"status":"ok","version":"1.0.0"}`
     - `/`、`/login`、`/dashboard`、`/analysis`、`/papers`、`/settings` 均返回 200
 
+### Credit 风格暗色前端调整
+- 用户偏好参考：`https://github.com/linux-do/credit` / `https://credit.linux.do/`
+- 已执行：
+  - 将 PaperPulse 全局主题从浅色研究工作台调整为暗色开发者仪表盘风格。
+  - 采用 OKLCH 暗色 token、半透明卡片、低对比边框、紧凑圆角、蓝/绿/紫少量强调色和 tabular 数字风格。
+  - 补齐旧 Tailwind 浅色类在暗色主题下的覆盖：卡片、表格、徽章、状态提示、弹窗、分页、hover、toast、加载动画。
+  - 保持页面结构和业务逻辑不变，只调整全局视觉系统和构建产物。
+- 修改位置：
+  - `frontend/src/style.css`
+  - `backend/static`
+- 验证结果：
+  - `npm run build`：通过
+  - `docker compose up -d --build`：通过，容器 healthy
+  - `GET /api/health`：200，返回 `{"status":"ok","version":"1.0.0"}`
+  - `GET /login`、`/dashboard`、`/reports`、`/papers`、`/settings`：均 200
+- Git:
+  - 已提交：`49dfcb7 feat: align frontend with credit dashboard style`
+  - 已推送：`origin/main`
+- nc48:
+  - `/opt/PaperPulse` 已 fast-forward 到 `49dfcb7`
+  - 已执行 `docker compose up -d --build`
+  - 容器 `paperpulse` healthy，端口 `127.0.0.1:18095->8000`
+  - 验证 `/api/health`、`/login`、`/dashboard`、`/reports`、`/papers`、`/settings` 均通过
+
+### 移除默认文献分析 50 篇上限
+- 用户问题：
+  - “文献分析总数上限是50吗，能不能调成新获取文献的所有数量”
+- 定位：
+  - RSS 抓取没有 50 限制。
+  - `fetch-and-analyze` 路径已通过 `fetched_paper_ids` 限定为本次新抓取论文，理论上会分析本次新获取的全部论文。
+  - 单独运行“分析已有未分析论文”路径在 `analyze_new_papers()` 未传 `paper_ids` 时存在 `.limit(50)`。
+- 已执行：
+  - 新增 55 篇待分析论文回归测试，先确认当前只分析 50 篇。
+  - 移除 `backend/app/services/ai_analyzer.py` 中默认查询的 `.limit(50)`。
+  - 保留传入 `paper_ids` 时的行为：抓取并分析只处理本次新抓取论文全集。
+- 验证结果：
+  - 新增测试先失败：`AssertionError: 55 != 50`
+  - 修复后关键 3 个 workflow 测试通过
+  - `docker run ... python -m unittest tests.test_ai_analyzer tests.test_reports tests.test_email_sender tests.test_rss_fetcher tests.test_workflow_engine`：23 tests OK
+  - `python -m compileall backend\app`：通过
+  - `npm run build`：通过
+  - 本地 `docker compose up -d --build`：容器 healthy
+  - 本地 `/api/health`、`/login`、`/dashboard`、`/reports`、`/papers`、`/settings`：通过
+- Git:
+  - 已提交：`ed05634 fix: analyze all pending papers`
+  - 已推送：`origin/main`
+- nc48:
+  - `/opt/PaperPulse` 已 fast-forward 到 `ed05634`
+  - 已执行 `docker compose up -d --build`
+  - 容器 `paperpulse` healthy，端口 `127.0.0.1:18095->8000`
+  - 验证 `/api/health`、`/login`、`/dashboard`、`/reports`、`/papers`、`/settings` 均通过
+
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
@@ -259,3 +311,33 @@
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*
+
+## 2026-05-12：阶段 18 阅读队列功能移植
+- 用户要求：把 PaperTrail 练习项目里的阅读队列功能添加到 `https://github.com/uovme/PaperPulse`，测试后推送。
+- 当前仓库：`C:\Users\aodo\PaperPulse`，分支 `main...origin/main`，远端 `https://github.com/uovme/PaperPulse.git`。
+- 初始工作区已有未提交变更：`task_plan.md`、`progress.md`，本轮不回滚，继续维护规划文件。
+- 实现边界：把阅读队列作为独立轻量工具接入 PaperPulse，用于手工保存论文/文章；不改现有 RSS Paper 自动抓取模型和分析 workflow。
+- 下一步：先写后端阅读队列 CRUD/筛选测试，确认失败后实现模型、schema、router。
+- TDD 红灯：新增 `backend/tests/test_reading_queue.py` 后，`POST /api/reading-queue` 返回 405，确认功能缺失。
+- 后端实现：
+  - 新增 `ReadingQueueItem` 模型，支持 `tags_json`、`status`、`notes`、创建/更新时间。
+  - 新增阅读队列 schema：创建、更新、输出、分页列表。
+  - 新增 `/api/reading-queue` CRUD API，支持搜索、状态筛选、标签筛选和分页。
+  - `main.py` 注册 reading queue router。
+- 后端测试绿灯：`docker run --rm -v ${PWD}\backend:/src:ro -w /src paperpulse-app python -m unittest tests.test_reading_queue`，3 tests OK。
+- 前端实现：
+  - `frontend/src/api/index.ts` 新增 readingQueueApi 和类型。
+  - `frontend/src/router/index.ts` 新增 `/reading-queue`。
+  - `frontend/src/App.vue` 侧边栏新增“阅读队列”。
+  - 新增 `frontend/src/views/ReadingQueue.vue`，支持列表、搜索、状态/标签筛选、添加、编辑、删除、待读/已读切换。
+- README 已补充阅读队列功能、使用流程和 API。
+- 验证结果：
+  - `python -m compileall backend\app`：通过。
+  - `npm run build`：通过，生成 `ReadingQueue-ghrLGspl.js`。
+  - `docker run --rm -v ${PWD}\backend:/src:ro -w /src paperpulse-app python -m unittest tests.test_reading_queue tests.test_reports tests.test_email_sender tests.test_rss_fetcher tests.test_workflow_engine`：22 tests OK。
+  - `docker compose up -d --build`：通过，容器 `paperpulse` healthy。
+  - `GET http://localhost:18095/api/health`：200。
+  - `GET http://localhost:18095/reading-queue`：200。
+  - 静态资源 `/assets/ReadingQueue-ghrLGspl.js` 和 `/assets/index-DQTAS3MD.css`：200。
+  - 未登录访问 `/api/reading-queue` 返回 401，符合现有认证中间件预期。
+  - 使用本地 auth token 端到端验证阅读队列 API：创建、未读+标签筛选、更新已读、已读+标签筛选、删除、删除后确认均通过。

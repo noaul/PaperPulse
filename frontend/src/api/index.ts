@@ -112,6 +112,46 @@ export const paperApi = {
   syncWeKnora: (id: number) => api.post(`/papers/${id}/sync-weknora`),
 }
 
+// ==================== Reading Queue ====================
+export type ReadingQueueStatus = 'unread' | 'read'
+
+export interface ReadingQueueItem {
+  id: number
+  title: string
+  url: string
+  abstract: string
+  tags: string[]
+  status: ReadingQueueStatus
+  notes: string
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface ReadingQueuePayload {
+  title: string
+  url: string
+  abstract: string
+  tags: string[]
+  notes: string
+}
+
+export interface ReadingQueueParams {
+  page?: number
+  page_size?: number
+  search?: string
+  status?: ReadingQueueStatus | ''
+  tag?: string
+}
+
+export const readingQueueApi = {
+  list: (params?: ReadingQueueParams) =>
+    api.get<PaginatedResponse<ReadingQueueItem>>('/reading-queue', { params }),
+  create: (data: ReadingQueuePayload) => api.post<ReadingQueueItem>('/reading-queue', data),
+  update: (id: number, data: Partial<ReadingQueuePayload> & { status?: ReadingQueueStatus }) =>
+    api.put<ReadingQueueItem>(`/reading-queue/${id}`, data),
+  delete: (id: number) => api.delete(`/reading-queue/${id}`),
+}
+
 // ==================== Keywords ====================
 export interface Keyword {
   id: number

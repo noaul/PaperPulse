@@ -22,6 +22,7 @@
 - **关键词匹配** — 设置研究关键词，AI 自动分析论文标题和摘要相关性
 - **AI 文献汇总分析** — 支持 OpenAI / DeepSeek 等兼容 API，输出相关性评分、匹配主题词和中文摘要
 - **分析结果页** — 独立查看论文标题、摘要、作者、期刊、原文链接、AI 评分和分析总结
+- **阅读队列** — 手工保存外部论文/文章，支持标签、搜索、待读/已读状态和备注
 - **工作流进度** — 抓取、分析、邮件、WebDAV 备份都有执行记录、节点日志和进度条
 - **分析任务控制** — 长时间 AI 分析支持暂停、继续、取消；抓取并分析时总数按本次新抓取论文计算
 - **邮件推送** — 高相关性论文每日自动推送到邮箱，支持 SMTP SSL/STARTTLS，邮件正文包含摘要
@@ -84,7 +85,8 @@ npm run dev
 4. 在仪表盘查看执行进度、已分析数量、总数、主题词相关数量
 5. 如分析耗时较长，可暂停、继续或取消
 6. 在「分析结果」页面查看 AI 分析详情和原文链接
-7. 配置邮件后自动推送每日报告
+7. 在「阅读队列」中保存需要稍后阅读的外部论文或文章
+8. 配置邮件后自动推送每日报告
 
 ### 工作流 API
 
@@ -97,6 +99,10 @@ npm run dev
 - `POST /api/executions/{id}/pause` — 暂停分析
 - `POST /api/executions/{id}/resume` — 继续分析
 - `POST /api/executions/{id}/cancel` — 取消分析
+- `GET /api/reading-queue` — 阅读队列列表，支持 `search`、`status`、`tag`、分页
+- `POST /api/reading-queue` — 添加阅读队列条目
+- `PUT /api/reading-queue/{id}` — 更新条目或切换待读/已读
+- `DELETE /api/reading-queue/{id}` — 删除条目
 
 说明：暂停/取消采用协作式控制，当前正在请求中的单篇 AI 分析会先完成，然后再暂停或取消后续论文。
 
@@ -110,6 +116,7 @@ npm run dev
 - **Keyword Matching** — Set research keywords, AI analyzes title and abstract relevance
 - **AI Literature Analysis** — Supports OpenAI / DeepSeek compatible APIs with scores, matched keywords, and Chinese summaries
 - **Analysis Results Page** — Review paper titles, abstracts, authors, journals, source links, AI scores, and summaries
+- **Reading Queue** — Manually save external papers or articles with tags, search, unread/read status, and notes
 - **Observable Workflows** — Fetch, analyze, email, and WebDAV backup steps are persisted with execution logs and progress
 - **Analysis Controls** — Long-running AI analysis can be paused, resumed, or cancelled
 - **Email Push** — Daily auto-push of highly relevant papers with abstract content; supports SMTP SSL/STARTTLS
@@ -147,7 +154,8 @@ Application data is stored in `./data/paperpulse.db`.
 4. Track progress on the dashboard: analyzed count, total count, and keyword-related count
 5. Pause, resume, or cancel long-running analysis jobs when needed
 6. Review detailed AI results on the Analysis page
-7. Configure email for automatic daily reports
+7. Save external papers or articles to the Reading Queue for later
+8. Configure email for automatic daily reports
 
 ### Workflow API
 
@@ -158,6 +166,10 @@ Application data is stored in `./data/paperpulse.db`.
 - `POST /api/executions/{id}/pause` — Pause analysis
 - `POST /api/executions/{id}/resume` — Resume analysis
 - `POST /api/executions/{id}/cancel` — Cancel analysis
+- `GET /api/reading-queue` — List reading queue items with `search`, `status`, `tag`, and pagination
+- `POST /api/reading-queue` — Create a reading queue item
+- `PUT /api/reading-queue/{id}` — Update an item or toggle unread/read status
+- `DELETE /api/reading-queue/{id}` — Delete an item
 
 ## License
 

@@ -48,6 +48,47 @@ class PaperOut(BaseModel):
         from_attributes = True
 
 
+# Reading queue
+ReadingQueueStatus = Literal["unread", "read"]
+
+
+class ReadingQueueItemCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=1024)
+    url: str = ""
+    abstract: str = ""
+    tags: list[str] = Field(default_factory=list)
+    notes: str = ""
+
+
+class ReadingQueueItemUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=1024)
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    tags: Optional[list[str]] = None
+    status: Optional[ReadingQueueStatus] = None
+    notes: Optional[str] = None
+
+
+class ReadingQueueItemOut(BaseModel):
+    id: int
+    title: str
+    url: str
+    abstract: str
+    tags: list[str] = Field(default_factory=list)
+    status: ReadingQueueStatus
+    notes: str
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+
+class ReadingQueueListOut(BaseModel):
+    items: list[ReadingQueueItemOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
 # Keyword
 class KeywordCreate(BaseModel):
     word: str

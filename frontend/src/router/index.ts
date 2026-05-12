@@ -31,6 +31,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '论文', requiresAuth: true },
   },
   {
+    path: '/reading-queue',
+    name: 'ReadingQueue',
+    component: () => import('@/views/ReadingQueue.vue'),
+    meta: { title: '阅读队列', requiresAuth: true },
+  },
+  {
     path: '/analysis',
     name: 'Analysis',
     component: () => import('@/views/Analysis.vue'),
