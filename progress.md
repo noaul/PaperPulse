@@ -341,3 +341,5 @@
   - 静态资源 `/assets/ReadingQueue-ghrLGspl.js` 和 `/assets/index-DQTAS3MD.css`：200。
   - 未登录访问 `/api/reading-queue` 返回 401，符合现有认证中间件预期。
   - 使用本地 auth token 端到端验证阅读队列 API：创建、未读+标签筛选、更新已读、已读+标签筛选、删除、删除后确认均通过。
+- Git:
+  - 已提交：`7d9d7e6 feat: add reading queue`。
