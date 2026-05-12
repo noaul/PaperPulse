@@ -1,0 +1,13 @@
+.paperpulse-pref-group {
+  margin-bottom: 16px;
+}
+
+.paperpulse-pref-group html|input {
+  width: 28em;
+  max-width: 100%;
+}
+
+.paperpulse-pref-note {
+  margin-top: 10px;
+  opacity: 0.8;
+}

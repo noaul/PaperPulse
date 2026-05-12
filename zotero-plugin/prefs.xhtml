@@ -1,0 +1,34 @@
+<groupbox class="paperpulse-pref-group" xmlns:html="http://www.w3.org/1999/xhtml">
+  <label><html:h2>PaperPulse</html:h2></label>
+  <description>Configure the PaperPulse backend used to analyze selected Zotero items.</description>
+
+  <grid>
+    <columns>
+      <column/>
+      <column flex="1"/>
+    </columns>
+    <rows>
+      <row align="center">
+        <label value="Backend URL"/>
+        <html:input id="paperpulse-backend-url" type="text" preference="extensions.paperpulse.backendURL"/>
+      </row>
+      <row align="center">
+        <label value="Auth token"/>
+        <html:input id="paperpulse-auth-token" type="password" preference="extensions.paperpulse.authToken"/>
+      </row>
+      <row align="center">
+        <label value="Minimum tag score"/>
+        <html:input id="paperpulse-min-score" type="number" min="0" max="10" preference="extensions.paperpulse.minScoreToTag"/>
+      </row>
+    </rows>
+  </grid>
+</groupbox>
+
+<groupbox class="paperpulse-pref-group" xmlns:html="http://www.w3.org/1999/xhtml">
+  <label><html:h2>Write Back</html:h2></label>
+  <checkbox label="Write PaperPulse tags to analyzed items" preference="extensions.paperpulse.addTags"/>
+  <checkbox label="Add a PaperPulse analysis child note" preference="extensions.paperpulse.addNote"/>
+  <html:p class="paperpulse-pref-note">
+    Use Tools -> PaperPulse: Analyze Selected Items after selecting one or more regular Zotero items.
+  </html:p>
+</groupbox>

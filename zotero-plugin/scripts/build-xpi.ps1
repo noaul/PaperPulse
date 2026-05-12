@@ -14,8 +14,11 @@ $files = @(
   "manifest.json",
   "bootstrap.js",
   "prefs.js",
+  "prefs.xhtml",
   "README.md",
-  "content\paperpulse.js"
+  "content\paperpulse.js",
+  "content\preferences.js",
+  "content\preferences.css"
 )
 
 $temp = Join-Path $dist "package"
