@@ -3,7 +3,7 @@ var PaperPulse = PaperPulse || {};
 PaperPulse.ZoteroAnalyzer = class {
   constructor(rootURI) {
     this.rootURI = rootURI;
-    this.menuItem = null;
+    this.menuItems = [];
   }
 
   async startup() {
@@ -12,10 +12,10 @@ PaperPulse.ZoteroAnalyzer = class {
   }
 
   async shutdown() {
-    if (this.menuItem) {
-      this.menuItem.remove();
-      this.menuItem = null;
+    for (const item of this.menuItems) {
+      item.remove();
     }
+    this.menuItems = [];
   }
 
   registerPrefs() {
@@ -44,11 +44,19 @@ PaperPulse.ZoteroAnalyzer = class {
       return;
     }
 
-    this.menuItem = document.createXULElement("menuitem");
-    this.menuItem.id = "paperpulse-analyze-selected";
-    this.menuItem.setAttribute("label", "PaperPulse: Analyze Selected Items");
-    this.menuItem.addEventListener("command", () => this.analyzeSelectedItems());
-    menu.appendChild(this.menuItem);
+    const analyzeItem = document.createXULElement("menuitem");
+    analyzeItem.id = "paperpulse-analyze-selected";
+    analyzeItem.setAttribute("label", "PaperPulse: Analyze Selected Items");
+    analyzeItem.addEventListener("command", () => this.analyzeSelectedItems());
+
+    const settingsItem = document.createXULElement("menuitem");
+    settingsItem.id = "paperpulse-settings";
+    settingsItem.setAttribute("label", "PaperPulse: Settings");
+    settingsItem.addEventListener("command", () => this.openSettings());
+
+    menu.appendChild(analyzeItem);
+    menu.appendChild(settingsItem);
+    this.menuItems.push(analyzeItem, settingsItem);
   }
 
   getPrefBranch() {
@@ -103,6 +111,38 @@ PaperPulse.ZoteroAnalyzer = class {
     }
 
     this.alert("PaperPulse", `Analyzed ${analyzed} item(s). Failed: ${failed}.`);
+  }
+
+  openSettings() {
+    const branch = this.getPrefBranch();
+    const prompts = Services.prompt;
+
+    const backendURL = { value: this.getBackendURL() };
+    if (!prompts.prompt(null, "PaperPulse Settings", "Backend URL", backendURL, null, {})) {
+      return;
+    }
+    branch.setStringPref("backendURL", backendURL.value.replace(/\/+$/, ""));
+
+    const authToken = { value: this.getAuthToken() };
+    if (prompts.prompt(null, "PaperPulse Settings", "Auth token (leave empty if first-time setup has no admin user)", authToken, null, {})) {
+      branch.setStringPref("authToken", authToken.value);
+    }
+
+    const minScore = { value: String(this.getMinScoreToTag()) };
+    if (prompts.prompt(null, "PaperPulse Settings", "Minimum score for writing tags", minScore, null, {})) {
+      const parsed = Number.parseInt(minScore.value, 10);
+      if (Number.isFinite(parsed)) {
+        branch.setIntPref("minScoreToTag", Math.max(0, Math.min(10, parsed)));
+      }
+    }
+
+    const addTags = prompts.confirm(null, "PaperPulse Settings", "Write PaperPulse tags to analyzed Zotero items?");
+    branch.setBoolPref("addTags", addTags);
+
+    const addNote = prompts.confirm(null, "PaperPulse Settings", "Write a PaperPulse analysis note as a child note?");
+    branch.setBoolPref("addNote", addNote);
+
+    this.alert("PaperPulse", "Settings saved.");
   }
 
   async analyzeItem(item) {
