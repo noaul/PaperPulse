@@ -103,7 +103,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 
 # Routers
-from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows, reports
+from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows, reports, reading_queue
 app.include_router(auth.router)
 app.include_router(feeds.router)
 app.include_router(papers.router)
@@ -114,6 +114,7 @@ app.include_router(dashboard.router)
 app.include_router(executions.router)
 app.include_router(workflows.router)
 app.include_router(reports.router)
+app.include_router(reading_queue.router)
 
 
 @app.get("/api/health")

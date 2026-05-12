@@ -33,6 +33,35 @@ class Paper(Base):
     analyses = relationship("AnalysisResult", back_populates="paper", cascade="all, delete-orphan")
 
 
+class ReadingQueueItem(Base):
+    __tablename__ = "reading_queue_items"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(1024), nullable=False, index=True)
+    url = Column(String(1024), default="")
+    abstract = Column(Text, default="")
+    tags_json = Column(Text, default="[]")
+    status = Column(String(20), default="unread", index=True)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    @property
+    def tags(self) -> list[str]:
+        try:
+            parsed = json.loads(self.tags_json or "[]")
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    def set_tags(self, tags: list[str]) -> None:
+        normalized = []
+        for tag in tags:
+            cleaned = str(tag).strip()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+        self.tags_json = json.dumps(normalized, ensure_ascii=False)
+
+
 class Keyword(Base):
     __tablename__ = "keywords"
     id = Column(Integer, primary_key=True, autoincrement=True)
