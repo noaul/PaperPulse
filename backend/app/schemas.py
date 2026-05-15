@@ -190,9 +190,9 @@ class WeKnoraConfig(BaseModel):
     sync_papers: bool = True
 
 class ScheduleConfig(BaseModel):
-    cron_hour: int = 6
-    cron_minute: int = 0
-    relevance_threshold: float = 6.0
+    cron_hour: int = Field(default=6, ge=0, le=23)
+    cron_minute: int = Field(default=0, ge=0, le=59)
+    relevance_threshold: float = Field(default=6.0, ge=0, le=10)
 
 
 # Dashboard

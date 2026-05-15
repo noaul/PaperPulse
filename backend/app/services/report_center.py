@@ -42,17 +42,29 @@ def _render_markdown(title: str, items: list[dict]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-async def collect_recent_report_items(db: AsyncSession, threshold: float) -> list[dict]:
+async def collect_recent_report_items(
+    db: AsyncSession,
+    threshold: float,
+    *,
+    paper_ids: list[int] | None = None,
+) -> list[dict]:
     today = _utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-    result = await db.execute(
+    query = (
         select(AnalysisResult, Paper, Keyword, Feed.journal_name)
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
-        .where(AnalysisResult.analyzed_at >= today)
         .where(AnalysisResult.relevance_score >= threshold)
         .order_by(desc(AnalysisResult.relevance_score), desc(AnalysisResult.analyzed_at))
     )
+    if paper_ids is None:
+        query = query.where(AnalysisResult.analyzed_at >= today)
+    elif not paper_ids:
+        return []
+    else:
+        query = query.where(AnalysisResult.paper_id.in_(paper_ids))
+
+    result = await db.execute(query)
 
     grouped: dict[int, dict] = {}
     for analysis, paper, keyword, journal_name in result.all():
@@ -84,11 +96,19 @@ async def create_report_from_recent_analyses(
     *,
     threshold: float = 6.0,
     source: str = "manual",
+    paper_ids: list[int] | None = None,
+    analyzed_count: int | None = None,
+    related_count: int | None = None,
 ) -> Report:
-    items = await collect_recent_report_items(db, threshold)
+    items = await collect_recent_report_items(db, threshold, paper_ids=paper_ids)
     title = _report_title()
     markdown = _render_markdown(title, items)
-    html = await build_email_html(items)
+    html = await build_email_html(
+        items,
+        threshold=threshold,
+        analyzed_count=analyzed_count,
+        related_count=related_count,
+    )
     report = Report(
         title=title,
         source=source,
@@ -181,8 +201,23 @@ async def send_report_email(db: AsyncSession, report_id: int) -> EmailDelivery:
     return delivery
 
 
-async def create_and_send_recent_report(db: AsyncSession, threshold: float, source: str = "manual") -> dict:
-    report = await create_report_from_recent_analyses(db, threshold=threshold, source=source)
+async def create_and_send_recent_report(
+    db: AsyncSession,
+    threshold: float,
+    source: str = "manual",
+    *,
+    paper_ids: list[int] | None = None,
+    analyzed_count: int | None = None,
+    related_count: int | None = None,
+) -> dict:
+    report = await create_report_from_recent_analyses(
+        db,
+        threshold=threshold,
+        source=source,
+        paper_ids=paper_ids,
+        analyzed_count=analyzed_count,
+        related_count=related_count,
+    )
     delivery = await send_report_email(db, report.id)
     return {
         "report_id": report.id,

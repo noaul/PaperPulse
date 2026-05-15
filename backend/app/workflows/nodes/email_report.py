@@ -25,7 +25,14 @@ class EmailReportNode(WorkflowNode):
 
     async def run(self, context: WorkflowContext) -> None:
         threshold = await get_relevance_threshold(context)
-        result = await send_daily_report(context.db, threshold=threshold)
+        paper_ids = context.state.get("fetched_paper_ids")
+        result = await send_daily_report(
+            context.db,
+            threshold=threshold,
+            paper_ids=paper_ids,
+            analyzed_count=int(context.summary.get("analysis_analyzed", 0)),
+            related_count=int(context.summary.get("analysis_related", 0)),
+        )
         sent = bool(result.get("sent"))
         await context.update_summary(
             email_report_id=result.get("report_id"),

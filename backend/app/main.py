@@ -44,7 +44,11 @@ def _get_schedule_config_sync():
         conn.close()
         if row:
             cfg = json.loads(row[0])
-            return cfg.get("cron_hour", 6), cfg.get("cron_minute", 0)
+            hour = int(cfg.get("cron_hour", 6))
+            minute = int(cfg.get("cron_minute", 0))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return hour, minute
+            logger.warning("Invalid schedule_config cron time hour=%s minute=%s; using 06:00", hour, minute)
     except Exception:
         pass
     return 6, 0

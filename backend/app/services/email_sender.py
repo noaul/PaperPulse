@@ -34,7 +34,13 @@ def open_smtp_connection(config: dict):
     return smtplib.SMTP(server, port, timeout=20)
 
 
-async def build_email_html(papers_data: list[dict]) -> str:
+async def build_email_html(
+    papers_data: list[dict],
+    *,
+    threshold: float | None = None,
+    analyzed_count: int | None = None,
+    related_count: int | None = None,
+) -> str:
     html = """<html><head><style>
     body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#333}
     .paper{border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin:12px 0;background:#fafafa}
@@ -53,6 +59,23 @@ async def build_email_html(papers_data: list[dict]) -> str:
     <p style="color:#666">""" + datetime.now().strftime("%Y-%m-%d") + """</p>
     """
 
+    if not papers_data:
+        detail_parts = []
+        if threshold is not None:
+            detail_parts.append(f"报告阈值 {float(threshold):.1f}")
+        if analyzed_count is not None:
+            detail_parts.append(f"本次分析 {int(analyzed_count)} 篇")
+        if related_count is not None:
+            detail_parts.append(f"AI 判定相关 {int(related_count)} 篇")
+        details = "，".join(detail_parts)
+        if details:
+            details = f"（{details}）"
+        html += f"""
+        <div class="paper">
+            <div class="title">未达到报告阈值的论文</div>
+            <div class="summary">本次日报没有论文达到配置的相关性阈值{details}。</div>
+        </div>"""
+
     for item in papers_data:
         score = item.get("score", 0)
         score_class = "" if score >= 7 else "mid" if score >= 5 else "low"
@@ -69,10 +92,24 @@ async def build_email_html(papers_data: list[dict]) -> str:
     return html
 
 
-async def send_daily_report(db: AsyncSession, threshold: float = 6.0) -> dict:
+async def send_daily_report(
+    db: AsyncSession,
+    threshold: float = 6.0,
+    *,
+    paper_ids: list[int] | None = None,
+    analyzed_count: int | None = None,
+    related_count: int | None = None,
+) -> dict:
     from .report_center import create_and_send_recent_report
 
-    result = await create_and_send_recent_report(db, threshold=threshold, source="daily-email")
+    result = await create_and_send_recent_report(
+        db,
+        threshold=threshold,
+        source="daily-email",
+        paper_ids=paper_ids,
+        analyzed_count=analyzed_count,
+        related_count=related_count,
+    )
     if result["sent"]:
         logger.info("Email sent: report=%s papers=%s", result["report_id"], result["paper_count"])
     elif result["skipped"]:

@@ -21,8 +21,10 @@ from app.services.ai_analyzer import analyze_new_papers
 from app.workflows.context import WorkflowCancelled, WorkflowContext
 from app.workflows.engine import WorkflowEngine
 from app.workflows.nodes import ai_analyze as ai_analyze_node_module
+from app.workflows.nodes import email_report as email_report_node_module
 from app.workflows.nodes.ai_analyze import AiAnalyzeNode
 from app.workflows.nodes.base import WorkflowNode
+from app.workflows.nodes.email_report import EmailReportNode
 
 
 class SummaryNode(WorkflowNode):
@@ -242,6 +244,57 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(3, context.summary["analysis_total"])
         finally:
             ai_analyze_node_module.analyze_new_papers = original_analyze
+
+    async def test_email_report_node_scopes_report_to_fetched_paper_ids(self):
+        original_send = email_report_node_module.send_daily_report
+        captured = {}
+
+        async def fake_send_daily_report(
+            db,
+            threshold=6.0,
+            *,
+            paper_ids=None,
+            analyzed_count=None,
+            related_count=None,
+        ):
+            captured["threshold"] = threshold
+            captured["paper_ids"] = paper_ids
+            captured["analyzed_count"] = analyzed_count
+            captured["related_count"] = related_count
+            return {
+                "report_id": 123,
+                "sent": True,
+                "skipped": False,
+                "reason": "",
+                "paper_count": 1,
+                "delivery_id": 456,
+            }
+
+        email_report_node_module.send_daily_report = fake_send_daily_report
+        try:
+            async with SessionLocal() as db:
+                db.add(Setting(
+                    key="schedule_config",
+                    value=json.dumps({"cron_hour": 6, "cron_minute": 0, "relevance_threshold": 6.5}),
+                ))
+                execution = WorkflowExecution(workflow_name="unit-email-node", status="running")
+                db.add(execution)
+                await db.commit()
+                await db.refresh(execution)
+
+                context = WorkflowContext(db, execution)
+                context.state["fetched_paper_ids"] = [10, 11, 12]
+                context.summary.update({"analysis_analyzed": 3, "analysis_related": 1})
+
+                await EmailReportNode().run(context)
+
+                self.assertEqual(6.5, captured["threshold"])
+                self.assertEqual([10, 11, 12], captured["paper_ids"])
+                self.assertEqual(3, captured["analyzed_count"])
+                self.assertEqual(1, captured["related_count"])
+                self.assertEqual(1, context.summary["email_paper_count"])
+        finally:
+            email_report_node_module.send_daily_report = original_send
 
     async def test_execution_control_pause_resume_and_cancel_updates_status_and_summary(self):
         async with SessionLocal() as db:

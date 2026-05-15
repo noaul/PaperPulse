@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from app.database import Base, engine, SessionLocal
 from app.models import AnalysisResult, EmailDelivery, Keyword, Paper, Report, ReportItem, Setting
+from app.services.email_sender import build_email_html
 from app.services.report_center import create_report_from_recent_analyses, send_report_email
 
 
@@ -122,3 +123,50 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
 
             persisted = await db.get(EmailDelivery, delivery.id)
             self.assertEqual("sent", persisted.status)
+
+    async def test_create_report_can_scope_items_to_current_workflow_papers(self):
+        async with SessionLocal() as db:
+            keyword = Keyword(word="alloy", enabled=True)
+            old_paper = Paper(title="Old matching paper", url="https://example.test/old")
+            current_paper = Paper(title="Current matching paper", url="https://example.test/current")
+            db.add_all([keyword, old_paper, current_paper])
+            await db.commit()
+            await db.refresh(keyword)
+            await db.refresh(old_paper)
+            await db.refresh(current_paper)
+
+            db.add_all([
+                AnalysisResult(
+                    paper_id=old_paper.id,
+                    keyword_id=keyword.id,
+                    relevance_score=9.0,
+                    summary="Old high score",
+                    analyzed_at=datetime.now(timezone.utc),
+                ),
+                AnalysisResult(
+                    paper_id=current_paper.id,
+                    keyword_id=keyword.id,
+                    relevance_score=6.0,
+                    summary="Current workflow score",
+                    analyzed_at=datetime.now(timezone.utc),
+                ),
+            ])
+            await db.commit()
+
+            report = await create_report_from_recent_analyses(
+                db,
+                threshold=6.0,
+                source="unit-test",
+                paper_ids=[current_paper.id],
+            )
+
+            self.assertEqual(1, report.paper_count)
+            self.assertIn("Current matching paper", report.markdown)
+            self.assertNotIn("Old matching paper", report.markdown)
+
+    async def test_empty_email_html_explains_when_no_papers_match_threshold(self):
+        html = await build_email_html([], threshold=7.0, analyzed_count=44, related_count=3)
+
+        self.assertIn("未达到报告阈值", html)
+        self.assertIn("7.0", html)
+        self.assertIn("44", html)
