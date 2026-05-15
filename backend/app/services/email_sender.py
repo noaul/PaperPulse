@@ -1,6 +1,7 @@
 import smtplib
 import json
 import logging
+from html import escape
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Setting
@@ -40,6 +41,7 @@ async def build_email_html(
     threshold: float | None = None,
     analyzed_count: int | None = None,
     related_count: int | None = None,
+    below_threshold_data: list[dict] | None = None,
 ) -> str:
     html = """<html><head><style>
     body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#333}
@@ -75,6 +77,19 @@ async def build_email_html(
             <div class="title">未达到报告阈值的论文</div>
             <div class="summary">本次日报没有论文达到配置的相关性阈值{details}。</div>
         </div>"""
+        if below_threshold_data:
+            html += """
+            <h3>未达到阈值的 AI 分析</h3>
+            """
+            for item in below_threshold_data[:10]:
+                score = float(item.get("score", 0))
+                html += f"""
+                <div class="paper">
+                    <div class="title"><a href="{escape(item.get('url') or '#', quote=True)}">{escape(item.get('title') or '')}</a></div>
+                    <div class="meta">{escape(item.get('authors') or '')} | {escape(item.get('journal') or '')} | <span class="score mid">Score: {score:.1f}</span></div>
+                    <div>{' '.join(f'<span class="keyword-tag">{escape(str(k))}</span>' for k in item.get('keywords', []))}</div>
+                    <div class="summary">{escape(item.get('summary') or '')}</div>
+                </div>"""
 
     for item in papers_data:
         score = item.get("score", 0)

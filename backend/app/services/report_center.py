@@ -18,10 +18,25 @@ def _report_title(now: datetime | None = None) -> str:
     return f"PaperPulse Literature Report - {current.strftime('%Y-%m-%d')}"
 
 
-def _render_markdown(title: str, items: list[dict]) -> str:
+def _render_markdown(title: str, items: list[dict], below_threshold_items: list[dict] | None = None) -> str:
     lines = [f"# {title}", ""]
     if not items:
         lines.append("No papers matched the configured threshold.")
+        if below_threshold_items:
+            lines.extend(["", "## Below-threshold AI analyses", ""])
+            for index, item in enumerate(below_threshold_items[:10], start=1):
+                lines.extend([
+                    f"### {index}. {item['title']}",
+                    "",
+                    f"- Score: {item['score']:.1f}",
+                    f"- Journal: {item.get('journal') or '-'}",
+                    f"- Authors: {item.get('authors') or '-'}",
+                    f"- Keywords: {', '.join(item.get('keywords') or []) or '-'}",
+                    f"- Link: {item.get('url') or '-'}",
+                    "",
+                    f"**AI Summary:** {item.get('summary') or '-'}",
+                    "",
+                ])
         return "\n".join(lines)
 
     for index, item in enumerate(items, start=1):
@@ -91,6 +106,56 @@ async def collect_recent_report_items(
     return sorted(grouped.values(), key=lambda item: item["score"], reverse=True)
 
 
+async def collect_below_threshold_digest_items(
+    db: AsyncSession,
+    threshold: float,
+    *,
+    paper_ids: list[int] | None = None,
+) -> list[dict]:
+    today = _utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    query = (
+        select(AnalysisResult, Paper, Keyword, Feed.journal_name)
+        .join(Paper, AnalysisResult.paper_id == Paper.id)
+        .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
+        .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .where(AnalysisResult.relevance_score < threshold)
+        .order_by(desc(AnalysisResult.relevance_score), desc(AnalysisResult.analyzed_at))
+    )
+    if paper_ids is None:
+        query = query.where(AnalysisResult.analyzed_at >= today)
+    elif not paper_ids:
+        return []
+    else:
+        query = query.where(AnalysisResult.paper_id.in_(paper_ids))
+
+    result = await db.execute(query)
+
+    grouped: dict[int, dict] = {}
+    for analysis, paper, keyword, journal_name in result.all():
+        score = float(analysis.relevance_score or 0)
+        item = grouped.setdefault(
+            paper.id,
+            {
+                "paper_id": paper.id,
+                "title": clean_text(paper.title),
+                "authors": clean_text(paper.authors),
+                "abstract": clean_text(paper.abstract),
+                "url": normalize_paper_url(paper.url),
+                "journal": journal_name or "",
+                "score": score,
+                "summary": analysis.summary or "",
+                "keywords": [],
+            },
+        )
+        if score > float(item["score"]):
+            item["score"] = score
+            item["summary"] = analysis.summary or item["summary"]
+        if keyword.word not in item["keywords"]:
+            item["keywords"].append(keyword.word)
+
+    return sorted(grouped.values(), key=lambda item: item["score"], reverse=True)
+
+
 async def create_report_from_recent_analyses(
     db: AsyncSession,
     *,
@@ -101,13 +166,17 @@ async def create_report_from_recent_analyses(
     related_count: int | None = None,
 ) -> Report:
     items = await collect_recent_report_items(db, threshold, paper_ids=paper_ids)
+    below_threshold_items = []
+    if not items:
+        below_threshold_items = await collect_below_threshold_digest_items(db, threshold, paper_ids=paper_ids)
     title = _report_title()
-    markdown = _render_markdown(title, items)
+    markdown = _render_markdown(title, items, below_threshold_items)
     html = await build_email_html(
         items,
         threshold=threshold,
         analyzed_count=analyzed_count,
         related_count=related_count,
+        below_threshold_data=below_threshold_items,
     )
     report = Report(
         title=title,

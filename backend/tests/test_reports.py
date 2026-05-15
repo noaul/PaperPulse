@@ -164,6 +164,45 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Current matching paper", report.markdown)
             self.assertNotIn("Old matching paper", report.markdown)
 
+    async def test_empty_threshold_report_includes_recent_ai_digest(self):
+        async with SessionLocal() as db:
+            keyword = Keyword(word="nickel alloy", enabled=True)
+            paper = Paper(
+                title="Below threshold but analyzed paper",
+                authors="A. Analyst",
+                abstract="Moderately relevant abstract",
+                url="https://example.test/below-threshold",
+            )
+            db.add_all([keyword, paper])
+            await db.commit()
+            await db.refresh(keyword)
+            await db.refresh(paper)
+
+            db.add(AnalysisResult(
+                paper_id=paper.id,
+                keyword_id=keyword.id,
+                relevance_score=6.0,
+                summary="AI found moderate relevance below the report threshold",
+                analyzed_at=datetime.now(timezone.utc),
+            ))
+            await db.commit()
+
+            report = await create_report_from_recent_analyses(
+                db,
+                threshold=7.0,
+                source="unit-test",
+                paper_ids=[paper.id],
+                analyzed_count=1,
+                related_count=1,
+            )
+
+            self.assertEqual(0, report.paper_count)
+            self.assertIn("Below-threshold AI analyses", report.markdown)
+            self.assertIn("Below threshold but analyzed paper", report.markdown)
+            self.assertIn("AI found moderate relevance", report.markdown)
+            self.assertIn("未达到阈值的 AI 分析", report.html)
+            self.assertIn("Below threshold but analyzed paper", report.html)
+
     async def test_empty_email_html_explains_when_no_papers_match_threshold(self):
         html = await build_email_html([], threshold=7.0, analyzed_count=44, related_count=3)
 
