@@ -22,10 +22,18 @@
           >
             新主题
           </button>
+          <button
+            type="submit"
+            form="topic-form"
+            :disabled="saving"
+            class="rounded-lg bg-green-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {{ editingId ? '保存主题' : '创建主题' }}
+          </button>
         </div>
       </div>
 
-      <form class="mt-5 space-y-5" @submit.prevent="saveTopic">
+      <form id="topic-form" class="mt-5 space-y-5" @submit.prevent="saveTopic">
         <div class="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_140px_180px_minmax(260px,1fr)] xl:items-end">
           <label class="block">
             <span class="mb-1 block text-sm font-medium text-gray-700">主题名称</span>
@@ -74,7 +82,7 @@
           <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="text-sm font-semibold text-gray-900">主题规则</h2>
-              <p class="mt-0.5 text-xs text-gray-500">每一行选择一个关系和一个关键词，可继续添加规则 2、3、4。</p>
+              <p class="mt-0.5 text-xs text-gray-500">第一行输入主题关键词，后续规则选择 AND / OR / NOT 继续组合。</p>
             </div>
             <button
               type="button"
@@ -95,7 +103,13 @@
                 规则 {{ index + 1 }}
               </div>
 
-              <label class="block">
+              <div
+                v-if="index === 0"
+                class="flex h-[42px] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-500"
+              >
+                主题关键词
+              </div>
+              <label v-else class="block">
                 <span class="mb-1 block text-xs font-medium text-gray-500">关系</span>
                 <select
                   v-model="row.operator"
@@ -109,17 +123,12 @@
 
               <label class="block">
                 <span class="mb-1 block text-xs font-medium text-gray-500">关键词</span>
-                <select
-                  v-model="row.keywordId"
+                <input
+                  v-model="row.keywordText"
+                  list="topic-keyword-options"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-                >
-                  <option :value="null" disabled>选择关键词</option>
-                  <optgroup v-for="group in groupedKeywords" :key="group.category" :label="group.category">
-                    <option v-for="keyword in group.keywords" :key="keyword.id" :value="keyword.id">
-                      {{ keyword.word }}
-                    </option>
-                  </optgroup>
-                </select>
+                  placeholder="输入关键词，或选择已有关键词"
+                />
               </label>
 
               <button
@@ -136,42 +145,58 @@
           <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
             {{ rulePreview }}
           </div>
-        </div>
 
-        <div class="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 xl:grid-cols-[minmax(180px,1fr)_160px_auto_auto] xl:items-end">
-          <label class="block">
-            <span class="mb-1 block text-sm font-medium text-gray-700">快速新增关键词</span>
-            <input
-              v-model="newKeyword.word"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              placeholder="关键词"
-            />
-          </label>
-          <label class="block">
-            <span class="mb-1 block text-sm font-medium text-gray-700">分类</span>
-            <input
-              v-model="newKeyword.category"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              placeholder="分类"
-            />
-          </label>
-          <button
-            type="button"
-            class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-            :disabled="addingKeyword || !newKeyword.word.trim()"
-            @click="addKeyword"
-          >
-            添加关键词
-          </button>
-          <button
-            type="submit"
-            :disabled="saving"
-            class="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {{ editingId ? '保存主题' : '创建主题' }}
-          </button>
+          <datalist id="topic-keyword-options">
+            <option v-for="keyword in keywords" :key="keyword.id" :value="keyword.word" :label="keyword.category" />
+          </datalist>
         </div>
       </form>
+    </section>
+
+    <section class="rounded-xl border border-gray-200 bg-white p-5">
+      <div class="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">关键词管理</h2>
+          <p class="mt-1 text-sm text-gray-500">维护当前工作区可用于邮件主题的关键词，删除后会从相关主题规则中移除。</p>
+        </div>
+        <span class="text-sm font-medium text-gray-500">{{ keywords.length }} 个关键词</span>
+      </div>
+
+      <div v-if="keywords.length === 0" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
+        还没有关键词，可以在上方规则里直接输入并创建主题。
+      </div>
+
+      <div v-else class="grid gap-4 xl:grid-cols-2">
+        <div
+          v-for="group in keywordManagementGroups"
+          :key="group.category"
+          class="rounded-lg border border-gray-200 bg-gray-50 p-4"
+        >
+          <div class="mb-3 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-800">{{ group.category }}</h3>
+            <span class="rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-500">{{ group.keywords.length }} 个</span>
+          </div>
+
+          <div class="grid gap-2">
+            <div
+              v-for="keyword in group.keywords"
+              :key="keyword.id"
+              class="grid grid-cols-[minmax(0,1fr)_5.5rem_auto] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
+            >
+              <span class="min-w-0 truncate text-sm font-medium text-gray-800">{{ keyword.word }}</span>
+              <span class="text-right text-xs text-gray-500">使用 {{ keywordUsageCount(keyword.id) }}</span>
+              <button
+                type="button"
+                class="rounded-md border border-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                :disabled="deletingKeywordId === keyword.id"
+                @click="deleteKeyword(keyword)"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="space-y-4">
@@ -230,7 +255,7 @@
             >
               <span class="font-semibold text-gray-500">规则 {{ index + 1 }}</span>
               <span :class="['rounded-md px-2 py-1 text-center text-xs font-semibold', operatorPillClass(rule.operator)]">
-                {{ operatorLabel(rule.operator) }}
+                {{ index === 0 ? '主题关键词' : operatorLabel(rule.operator) }}
               </span>
               <span class="min-w-0 truncate font-medium text-gray-800">{{ rule.keyword }}</span>
             </div>
@@ -261,7 +286,16 @@ type RuleOperator = EmailRuleType
 type TopicRuleRow = {
   id: number
   operator: RuleOperator
-  keywordId: number | null
+  keywordText: string
+}
+
+type SelectedTopicRuleRow = TopicRuleRow & {
+  index: number
+  keywordText: string
+}
+
+type ResolvedTopicRuleRow = SelectedTopicRuleRow & {
+  keywordId: number
 }
 
 type TopicDisplayRule = {
@@ -274,7 +308,7 @@ const keywords = ref<Keyword[]>([])
 const topics = ref<EmailTopicRule[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const addingKeyword = ref(false)
+const deletingKeywordId = ref<number | null>(null)
 const editingId = ref<number | null>(null)
 
 let nextRuleRowId = 1
@@ -293,22 +327,17 @@ const form = reactive({
   recipients: '',
 })
 
-const newKeyword = reactive({
-  word: '',
-  category: 'default',
-})
-
-function createRuleRow(operator: RuleOperator = 'OR', keywordId: number | null = null): TopicRuleRow {
+function createRuleRow(operator: RuleOperator = 'OR', keywordText = ''): TopicRuleRow {
   return {
     id: nextRuleRowId++,
     operator,
-    keywordId,
+    keywordText,
   }
 }
 
-const groupedKeywords = computed(() => {
+const keywordManagementGroups = computed(() => {
   const groups = new Map<string, Keyword[]>()
-  for (const keyword of keywords.value.filter((item) => item.enabled)) {
+  for (const keyword of keywords.value) {
     const category = keyword.category || '未分类'
     if (!groups.has(category)) groups.set(category, [])
     groups.get(category)!.push(keyword)
@@ -321,16 +350,16 @@ const groupedKeywords = computed(() => {
 
 const rulePreview = computed(() => {
   const rows = selectedRuleRows()
-  const includeRows = rows.filter((row) => row.operator !== 'NOT')
-  const excludeRows = rows.filter((row) => row.operator === 'NOT')
-  const includeWords = includeRows.map((row) => keywordName(row.keywordId)).join('、')
-  const excludeWords = excludeRows.map((row) => keywordName(row.keywordId)).join('、')
+  const includeRows = rows.filter((row) => effectiveOperator(row) !== 'NOT')
+  const excludeRows = rows.filter((row) => effectiveOperator(row) === 'NOT')
+  const includeWords = includeRows.map((row) => row.keywordText).join('、')
+  const excludeWords = excludeRows.map((row) => row.keywordText).join('、')
 
   if (includeRows.length === 0) return '至少添加一个 OR 或 AND 规则作为主题关键词。'
   if (excludeRows.length > 0) {
     return `当前主题会匹配：${includeWords || '未选择'}；并排除：${excludeWords || '未选择'}。`
   }
-  if (includeRows.length > 1 && includeRows.every((row) => row.operator === 'AND')) {
+  if (shouldUseAndRule(rows)) {
     return `当前主题要求论文同时命中：${includeWords}。`
   }
   return `当前主题会匹配任一关键词：${includeWords}。`
@@ -366,13 +395,35 @@ function keywordName(id: number): string {
   return keywords.value.find((keyword) => keyword.id === id)?.word || `#${id}`
 }
 
-function selectedRuleRows(): Array<TopicRuleRow & { keywordId: number }> {
-  return ruleRows.value.filter((row): row is TopicRuleRow & { keywordId: number } => typeof row.keywordId === 'number')
+function keywordUsageCount(id: number): number {
+  return topics.value.filter((topic) => topic.keyword_ids.includes(id) || topic.exclude_keyword_ids.includes(id)).length
+}
+
+function normalizeKeywordWord(word: string): string {
+  return word.trim().toLowerCase()
+}
+
+function effectiveOperator(row: Pick<TopicRuleRow, 'operator'> & { index: number }): RuleOperator {
+  return row.index === 0 ? 'OR' : row.operator
+}
+
+function selectedRuleRows(): SelectedTopicRuleRow[] {
+  return ruleRows.value
+    .map((row, index) => ({
+      ...row,
+      index,
+      keywordText: row.keywordText.trim(),
+    }))
+    .filter((row) => row.keywordText.length > 0)
+}
+
+function shouldUseAndRule(rows: SelectedTopicRuleRow[]): boolean {
+  const includeRows = rows.filter((row) => effectiveOperator(row) !== 'NOT')
+  return includeRows.length > 1 && includeRows.slice(1).every((row) => effectiveOperator(row) === 'AND')
 }
 
 function addRuleRow() {
-  const defaultOperator = ruleRows.value.length === 0 ? 'OR' : 'AND'
-  ruleRows.value.push(createRuleRow(defaultOperator))
+  ruleRows.value.push(createRuleRow('AND'))
 }
 
 function removeRuleRow(id: number) {
@@ -412,52 +463,92 @@ function editTopic(topic: EmailTopicRule) {
   form.enabled = topic.enabled
   form.recipients = topic.recipients || ''
   const includeOperator: RuleOperator = topic.rule_type === 'AND' ? 'AND' : 'OR'
-  const includeRows = topic.keyword_ids.map((id) => createRuleRow(includeOperator, id))
-  const excludeRows = topic.exclude_keyword_ids.map((id) => createRuleRow('NOT', id))
+  const includeRows = topic.keyword_ids.map((id) => createRuleRow(includeOperator, keywordName(id)))
+  const excludeRows = topic.exclude_keyword_ids.map((id) => createRuleRow('NOT', keywordName(id)))
   ruleRows.value = [...includeRows, ...excludeRows]
   if (ruleRows.value.length === 0) ruleRows.value = [createRuleRow()]
 }
 
-async function addKeyword() {
-  addingKeyword.value = true
+async function deleteKeyword(keyword: Keyword) {
+  const usageCount = keywordUsageCount(keyword.id)
+  const message =
+    usageCount > 0
+      ? `确定删除关键词 "${keyword.word}" 吗？它会同时从 ${usageCount} 个邮件主题规则中移除。`
+      : `确定删除关键词 "${keyword.word}" 吗？`
+  if (!confirm(message)) return
+
+  deletingKeywordId.value = keyword.id
   try {
-    const { data } = await keywordApi.create({
-      word: newKeyword.word.trim(),
-      category: newKeyword.category.trim() || 'default',
-    })
-    keywords.value.push(data)
-    const emptyRow = ruleRows.value.find((row) => row.keywordId === null)
-    if (emptyRow) emptyRow.keywordId = data.id
-    else ruleRows.value.push(createRuleRow('OR', data.id))
-    newKeyword.word = ''
-    appStore.success('关键词已添加到当前主题')
+    const affectedTopics = topics.value.filter(
+      (topic) => topic.keyword_ids.includes(keyword.id) || topic.exclude_keyword_ids.includes(keyword.id)
+    )
+
+    for (const topic of affectedTopics) {
+      const keywordIds = topic.keyword_ids.filter((id) => id !== keyword.id)
+      const excludeKeywordIds = topic.exclude_keyword_ids.filter((id) => id !== keyword.id)
+      await emailTopicRuleApi.update(topic.id, {
+        keyword_ids: keywordIds,
+        exclude_keyword_ids: excludeKeywordIds,
+        enabled: keywordIds.length > 0 ? topic.enabled : false,
+      })
+    }
+
+    await keywordApi.delete(keyword.id)
+    ruleRows.value = ruleRows.value.map((row) =>
+      normalizeKeywordWord(row.keywordText) === normalizeKeywordWord(keyword.word) ? { ...row, keywordText: '' } : row
+    )
+    appStore.success('关键词已删除')
+    await loadData()
   } catch (err: any) {
-    appStore.error('添加关键词失败: ' + err.message)
+    appStore.error('删除关键词失败: ' + err.message)
   } finally {
-    addingKeyword.value = false
+    deletingKeywordId.value = null
   }
+}
+
+async function resolveKeywordId(word: string): Promise<number> {
+  const normalized = normalizeKeywordWord(word)
+  const existing = keywords.value.find((keyword) => normalizeKeywordWord(keyword.word) === normalized)
+  if (existing) return existing.id
+
+  const { data } = await keywordApi.create({
+    word: word.trim(),
+    category: 'default',
+  })
+  keywords.value.push(data)
+  return data.id
+}
+
+async function resolveRuleRows(rows: SelectedTopicRuleRow[]): Promise<ResolvedTopicRuleRow[]> {
+  const resolved: ResolvedTopicRuleRow[] = []
+  for (const row of rows) {
+    const keywordId = await resolveKeywordId(row.keywordText)
+    resolved.push({ ...row, keywordId })
+  }
+  return resolved
 }
 
 async function saveTopic() {
   const rows = selectedRuleRows()
-  const includeRows = rows.filter((row) => row.operator !== 'NOT')
-  const excludeRows = rows.filter((row) => row.operator === 'NOT')
+  const includeRows = rows.filter((row) => effectiveOperator(row) !== 'NOT')
   if (includeRows.length === 0) {
     appStore.warning('请至少添加一个 OR 或 AND 关键词规则')
     return
   }
 
-  const keywordIds = Array.from(new Set(includeRows.map((row) => Number(row.keywordId))))
-  const excludeKeywordIds = Array.from(new Set(excludeRows.map((row) => Number(row.keywordId))))
-  const ruleType: EmailRuleType =
-    excludeKeywordIds.length > 0
-      ? 'NOT'
-      : includeRows.length > 1 && includeRows.every((row) => row.operator === 'AND')
-        ? 'AND'
-        : 'OR'
-
   saving.value = true
   try {
+    const resolvedRows = await resolveRuleRows(rows)
+    const resolvedIncludeRows = resolvedRows.filter((row) => effectiveOperator(row) !== 'NOT')
+    const resolvedExcludeRows = resolvedRows.filter((row) => effectiveOperator(row) === 'NOT')
+    const keywordIds = Array.from(new Set(resolvedIncludeRows.map((row) => Number(row.keywordId))))
+    const excludeKeywordIds = Array.from(new Set(resolvedExcludeRows.map((row) => Number(row.keywordId))))
+    const ruleType: EmailRuleType =
+      excludeKeywordIds.length > 0
+        ? 'NOT'
+        : shouldUseAndRule(resolvedRows)
+          ? 'AND'
+          : 'OR'
     const payload = {
       name: form.name.trim(),
       rule_type: ruleType,
