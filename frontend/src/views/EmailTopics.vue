@@ -1,131 +1,177 @@
 <template>
   <div class="topic-page space-y-5">
     <section class="topic-composer rounded-xl border border-gray-200 bg-white p-5">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h1 class="text-xl font-semibold text-gray-900">{{ editingId ? '编辑邮件主题' : '创建邮件主题' }}</h1>
-            <p class="mt-1 text-sm text-gray-500">
-              像 Google Scholar 订阅一样，为研究方向设置检索条件、排除词和邮件提醒。
-            </p>
-          </div>
-          <button v-if="editingId" class="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" @click="resetForm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">{{ editingId ? '编辑邮件主题' : '创建邮件主题' }}</h1>
+          <p class="mt-1 text-sm text-gray-500">按规则行组合关键词，系统会按主题分别筛选论文并发送邮件。</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-if="editingId"
+            type="button"
+            class="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            @click="resetForm"
+          >
             取消编辑
           </button>
+          <button
+            type="button"
+            class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            @click="resetForm"
+          >
+            新主题
+          </button>
         </div>
+      </div>
 
-        <form class="mt-4 grid gap-4 xl:grid-cols-[minmax(220px,0.65fr)_minmax(340px,1fr)_minmax(300px,0.9fr)]" @submit.prevent="saveTopic">
-          <div class="space-y-4">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">主题名称</label>
+      <form class="mt-5 space-y-5" @submit.prevent="saveTopic">
+        <div class="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_140px_180px_minmax(260px,1fr)] xl:items-end">
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium text-gray-700">主题名称</span>
             <input
               v-model="form.name"
               required
               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
               placeholder="例如：疲劳与蠕变"
             />
-          </div>
+          </label>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">论文满足条件</label>
-            <div class="grid gap-2">
-              <button
-                v-for="option in ruleOptions"
-                :key="option.value"
-                type="button"
-                :class="[
-                  'rounded-lg border px-3 py-3 text-left text-sm',
-                  form.rule_type === option.value ? 'border-blue-300 bg-blue-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50',
-                ]"
-                @click="form.rule_type = option.value"
-              >
-                <span class="block font-semibold">{{ option.label }}</span>
-                <span class="mt-1 block text-xs opacity-80">{{ option.description }}</span>
-              </button>
-            </div>
-          </div>
-          </div>
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium text-gray-700">最低评分</span>
+            <input
+              v-model.number="form.threshold"
+              type="number"
+              min="0"
+              max="10"
+              step="0.5"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+            />
+          </label>
 
-          <div class="space-y-4">
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700">最低评分</label>
-              <input
-                v-model.number="form.threshold"
-                type="number"
-                min="0"
-                max="10"
-                step="0.5"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              />
-            </div>
-            <label class="topic-switch rounded-lg border border-gray-200 p-3">
-              <span>
-                <span class="block text-sm font-medium text-gray-700">邮件发送</span>
-                <span class="block text-xs text-gray-500">{{ form.enabled ? '启用' : '暂停' }}</span>
-              </span>
-              <input v-model="form.enabled" type="checkbox" class="sr-only" />
-              <span :class="['switch-track', form.enabled ? 'switch-track-on' : '']">
-                <span :class="['switch-thumb', form.enabled ? 'switch-thumb-on' : '']"></span>
-              </span>
-            </label>
-          </div>
+          <label class="topic-switch h-[42px] rounded-lg border border-gray-200 px-3">
+            <span>
+              <span class="block text-sm font-medium text-gray-700">邮件发送</span>
+              <span class="block text-xs text-gray-500">{{ form.enabled ? '启用' : '暂停' }}</span>
+            </span>
+            <input v-model="form.enabled" type="checkbox" class="sr-only" />
+            <span :class="['switch-track', form.enabled ? 'switch-track-on' : '']">
+              <span :class="['switch-thumb', form.enabled ? 'switch-thumb-on' : '']"></span>
+            </span>
+          </label>
 
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">包含关键词</label>
-            <KeywordPicker v-model="form.keyword_ids" :groups="groupedKeywords" tone="include" />
-          </div>
-          </div>
-
-          <div class="space-y-4">
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">排除关键词</label>
-            <KeywordPicker v-model="form.exclude_keyword_ids" :groups="groupedKeywords" tone="exclude" :disabled="form.rule_type !== 'NOT'" />
-          </div>
-
-          <div class="rounded-xl bg-gray-50 p-3">
-            <label class="mb-2 block text-sm font-medium text-gray-700">快速新增关键词</label>
-            <div class="grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
-              <input
-                v-model="newKeyword.word"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
-                placeholder="关键词"
-              />
-              <input
-                v-model="newKeyword.category"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
-                placeholder="分类"
-              />
-              <button
-                type="button"
-                class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                :disabled="addingKeyword || !newKeyword.word.trim()"
-                @click="addKeyword"
-              >
-                添加
-              </button>
-            </div>
-          </div>
-          </div>
-
-          <div class="xl:col-span-3 grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto] md:items-end">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">自定义收件人</label>
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium text-gray-700">自定义收件人</span>
             <input
               v-model="form.recipients"
               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
               placeholder="留空使用全局邮件配置"
             />
+          </label>
+        </div>
+
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">主题规则</h2>
+              <p class="mt-0.5 text-xs text-gray-500">每一行选择一个关系和一个关键词，可继续添加规则 2、3、4。</p>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              @click="addRuleRow"
+            >
+              添加规则
+            </button>
           </div>
 
+          <div class="space-y-3">
+            <div
+              v-for="(row, index) in ruleRows"
+              :key="row.id"
+              class="grid gap-3 rounded-lg border border-gray-200 bg-white p-3 xl:grid-cols-[5rem_13rem_minmax(240px,1fr)_2.75rem] xl:items-end"
+            >
+              <div class="flex h-[42px] items-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600">
+                规则 {{ index + 1 }}
+              </div>
+
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-500">关系</span>
+                <select
+                  v-model="row.operator"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+                >
+                  <option v-for="option in ruleOperatorOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-gray-500">关键词</span>
+                <select
+                  v-model="row.keywordId"
+                  class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+                >
+                  <option :value="null" disabled>选择关键词</option>
+                  <optgroup v-for="group in groupedKeywords" :key="group.category" :label="group.category">
+                    <option v-for="keyword in group.keywords" :key="keyword.id" :value="keyword.id">
+                      {{ keyword.word }}
+                    </option>
+                  </optgroup>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                class="h-[42px] rounded-lg border border-gray-300 text-sm font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600"
+                title="删除规则"
+                @click="removeRuleRow(row.id)"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            {{ rulePreview }}
+          </div>
+        </div>
+
+        <div class="grid gap-3 rounded-lg border border-gray-200 bg-white p-4 xl:grid-cols-[minmax(180px,1fr)_160px_auto_auto] xl:items-end">
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium text-gray-700">快速新增关键词</span>
+            <input
+              v-model="newKeyword.word"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+              placeholder="关键词"
+            />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-sm font-medium text-gray-700">分类</span>
+            <input
+              v-model="newKeyword.category"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+              placeholder="分类"
+            />
+          </label>
+          <button
+            type="button"
+            class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            :disabled="addingKeyword || !newKeyword.word.trim()"
+            @click="addKeyword"
+          >
+            添加关键词
+          </button>
           <button
             type="submit"
             :disabled="saving"
-            class="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            class="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
           >
             {{ editingId ? '保存主题' : '创建主题' }}
           </button>
-          </div>
-        </form>
+        </div>
+      </form>
     </section>
 
     <section class="space-y-4">
@@ -176,34 +222,20 @@
             </div>
           </div>
 
-          <div class="mt-5 space-y-4">
-            <div>
-              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">包含关键词</p>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-for="id in topic.keyword_ids"
-                  :key="id"
-                  class="rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
-                >
-                  {{ keywordName(id) }}
-                </span>
-              </div>
+          <div class="mt-5 space-y-2">
+            <div
+              v-for="(rule, index) in topicDisplayRules(topic)"
+              :key="`${topic.id}-${rule.operator}-${rule.keyword}`"
+              class="grid grid-cols-[4.5rem_8rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
+            >
+              <span class="font-semibold text-gray-500">规则 {{ index + 1 }}</span>
+              <span :class="['rounded-md px-2 py-1 text-center text-xs font-semibold', operatorPillClass(rule.operator)]">
+                {{ operatorLabel(rule.operator) }}
+              </span>
+              <span class="min-w-0 truncate font-medium text-gray-800">{{ rule.keyword }}</span>
             </div>
 
-            <div v-if="topic.exclude_keyword_ids.length > 0">
-              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">排除关键词</p>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-for="id in topic.exclude_keyword_ids"
-                  :key="id"
-                  class="rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700"
-                >
-                  {{ keywordName(id) }}
-                </span>
-              </div>
-            </div>
-
-            <p class="text-xs text-gray-500">
+            <p class="pt-2 text-xs text-gray-500">
               收件人：{{ topic.recipients || '使用全局邮件配置' }}
             </p>
           </div>
@@ -214,7 +246,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, type PropType } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { emailTopicRuleApi, keywordApi } from '@/api'
 import type { EmailRuleType, EmailTopicRule, Keyword } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -224,82 +256,18 @@ type KeywordGroup = {
   keywords: Keyword[]
 }
 
-const KeywordPicker = defineComponent({
-  name: 'KeywordPicker',
-  props: {
-    modelValue: {
-      type: Array as PropType<number[]>,
-      required: true,
-    },
-    groups: {
-      type: Array as PropType<KeywordGroup[]>,
-      required: true,
-    },
-    tone: {
-      type: String as PropType<'include' | 'exclude'>,
-      required: true,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    function toggle(id: number) {
-      if (props.disabled) return
-      const selected = new Set(props.modelValue)
-      if (selected.has(id)) selected.delete(id)
-      else selected.add(id)
-      emit('update:modelValue', Array.from(selected))
-    }
+type RuleOperator = EmailRuleType
 
-    return () =>
-      h(
-        'div',
-        {
-          class: [
-            'keyword-picker min-h-[120px] rounded-xl border border-gray-200 bg-gray-50 p-3',
-            props.disabled ? 'opacity-50' : '',
-          ],
-        },
-        props.disabled
-          ? h('p', { class: 'text-sm text-gray-500' }, '选择“包含关键词，但排除以下关键词”后可设置排除条件')
-          : props.groups.length === 0
-            ? h('p', { class: 'text-sm text-gray-500' }, '还没有可选关键词')
-            : props.groups.map((group) =>
-                h('div', { class: 'mb-3 last:mb-0', key: group.category }, [
-                  h('p', { class: 'mb-2 text-xs font-medium text-gray-500' }, group.category),
-                  h(
-                    'div',
-                    { class: 'flex flex-wrap gap-2' },
-                    group.keywords.map((keyword) => {
-                      const selected = props.modelValue.includes(keyword.id)
-                      const color =
-                        props.tone === 'exclude'
-                          ? selected
-                            ? 'border-red-300 bg-red-100 text-red-700'
-                            : 'border-gray-200 bg-white text-gray-600 hover:bg-red-50'
-                          : selected
-                            ? 'border-blue-300 bg-blue-100 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-600 hover:bg-blue-50'
-                      return h(
-                        'button',
-                        {
-                          key: keyword.id,
-                          type: 'button',
-                          class: ['rounded-md border px-2.5 py-1 text-xs font-medium transition-colors', color],
-                          onClick: () => toggle(keyword.id),
-                        },
-                        keyword.word
-                      )
-                    })
-                  ),
-                ])
-              )
-      )
-  },
-})
+type TopicRuleRow = {
+  id: number
+  operator: RuleOperator
+  keywordId: number | null
+}
+
+type TopicDisplayRule = {
+  operator: RuleOperator
+  keyword: string
+}
 
 const appStore = useAppStore()
 const keywords = ref<Keyword[]>([])
@@ -309,17 +277,17 @@ const saving = ref(false)
 const addingKeyword = ref(false)
 const editingId = ref<number | null>(null)
 
-const ruleOptions: Array<{ value: EmailRuleType; label: string; description: string }> = [
-  { value: 'OR', label: '包含任一关键词', description: '适合宽泛跟踪：命中其中一个关键词就进入这个主题。' },
-  { value: 'AND', label: '同时包含全部关键词', description: '适合精确主题：必须同时命中所选关键词。' },
-  { value: 'NOT', label: '包含关键词，但排除以下关键词', description: '适合降噪：先命中主题词，再过滤掉不想看的方向。' },
+let nextRuleRowId = 1
+const ruleRows = ref<TopicRuleRow[]>([createRuleRow()])
+
+const ruleOperatorOptions: Array<{ value: RuleOperator; label: string }> = [
+  { value: 'OR', label: 'OR 其中一个命中' },
+  { value: 'AND', label: 'AND 必须同时命中' },
+  { value: 'NOT', label: 'NOT 排除该关键词' },
 ]
 
 const form = reactive({
   name: '',
-  rule_type: 'OR' as EmailRuleType,
-  keyword_ids: [] as number[],
-  exclude_keyword_ids: [] as number[],
   threshold: 6,
   enabled: true,
   recipients: '',
@@ -329,6 +297,14 @@ const newKeyword = reactive({
   word: '',
   category: 'default',
 })
+
+function createRuleRow(operator: RuleOperator = 'OR', keywordId: number | null = null): TopicRuleRow {
+  return {
+    id: nextRuleRowId++,
+    operator,
+    keywordId,
+  }
+}
 
 const groupedKeywords = computed(() => {
   const groups = new Map<string, Keyword[]>()
@@ -341,6 +317,23 @@ const groupedKeywords = computed(() => {
     category,
     keywords: items,
   }))
+})
+
+const rulePreview = computed(() => {
+  const rows = selectedRuleRows()
+  const includeRows = rows.filter((row) => row.operator !== 'NOT')
+  const excludeRows = rows.filter((row) => row.operator === 'NOT')
+  const includeWords = includeRows.map((row) => keywordName(row.keywordId)).join('、')
+  const excludeWords = excludeRows.map((row) => keywordName(row.keywordId)).join('、')
+
+  if (includeRows.length === 0) return '至少添加一个 OR 或 AND 规则作为主题关键词。'
+  if (excludeRows.length > 0) {
+    return `当前主题会匹配：${includeWords || '未选择'}；并排除：${excludeWords || '未选择'}。`
+  }
+  if (includeRows.length > 1 && includeRows.every((row) => row.operator === 'AND')) {
+    return `当前主题要求论文同时命中：${includeWords}。`
+  }
+  return `当前主题会匹配任一关键词：${includeWords}。`
 })
 
 function ruleTypeLabel(type: EmailRuleType): string {
@@ -357,19 +350,43 @@ function ruleTypeDescription(topic: EmailTopicRule): string {
   return `论文包含任意一个：${include}`
 }
 
+function operatorLabel(type: RuleOperator): string {
+  if (type === 'AND') return 'AND'
+  if (type === 'NOT') return 'NOT'
+  return 'OR'
+}
+
+function operatorPillClass(type: RuleOperator): string {
+  if (type === 'AND') return 'bg-green-100 text-green-700'
+  if (type === 'NOT') return 'bg-red-100 text-red-700'
+  return 'bg-blue-100 text-blue-700'
+}
+
 function keywordName(id: number): string {
   return keywords.value.find((keyword) => keyword.id === id)?.word || `#${id}`
+}
+
+function selectedRuleRows(): Array<TopicRuleRow & { keywordId: number }> {
+  return ruleRows.value.filter((row): row is TopicRuleRow & { keywordId: number } => typeof row.keywordId === 'number')
+}
+
+function addRuleRow() {
+  const defaultOperator = ruleRows.value.length === 0 ? 'OR' : 'AND'
+  ruleRows.value.push(createRuleRow(defaultOperator))
+}
+
+function removeRuleRow(id: number) {
+  ruleRows.value = ruleRows.value.filter((row) => row.id !== id)
+  if (ruleRows.value.length === 0) ruleRows.value = [createRuleRow()]
 }
 
 function resetForm() {
   editingId.value = null
   form.name = ''
-  form.rule_type = 'OR'
-  form.keyword_ids = []
-  form.exclude_keyword_ids = []
   form.threshold = 6
   form.enabled = true
   form.recipients = ''
+  ruleRows.value = [createRuleRow()]
 }
 
 async function loadData() {
@@ -391,12 +408,14 @@ async function loadData() {
 function editTopic(topic: EmailTopicRule) {
   editingId.value = topic.id
   form.name = topic.name
-  form.rule_type = topic.rule_type
-  form.keyword_ids = [...topic.keyword_ids]
-  form.exclude_keyword_ids = [...topic.exclude_keyword_ids]
   form.threshold = topic.threshold
   form.enabled = topic.enabled
   form.recipients = topic.recipients || ''
+  const includeOperator: RuleOperator = topic.rule_type === 'AND' ? 'AND' : 'OR'
+  const includeRows = topic.keyword_ids.map((id) => createRuleRow(includeOperator, id))
+  const excludeRows = topic.exclude_keyword_ids.map((id) => createRuleRow('NOT', id))
+  ruleRows.value = [...includeRows, ...excludeRows]
+  if (ruleRows.value.length === 0) ruleRows.value = [createRuleRow()]
 }
 
 async function addKeyword() {
@@ -407,7 +426,9 @@ async function addKeyword() {
       category: newKeyword.category.trim() || 'default',
     })
     keywords.value.push(data)
-    if (!form.keyword_ids.includes(data.id)) form.keyword_ids.push(data.id)
+    const emptyRow = ruleRows.value.find((row) => row.keywordId === null)
+    if (emptyRow) emptyRow.keywordId = data.id
+    else ruleRows.value.push(createRuleRow('OR', data.id))
     newKeyword.word = ''
     appStore.success('关键词已添加到当前主题')
   } catch (err: any) {
@@ -418,18 +439,30 @@ async function addKeyword() {
 }
 
 async function saveTopic() {
-  if (form.keyword_ids.length === 0) {
-    appStore.warning('请至少选择一个包含关键词')
+  const rows = selectedRuleRows()
+  const includeRows = rows.filter((row) => row.operator !== 'NOT')
+  const excludeRows = rows.filter((row) => row.operator === 'NOT')
+  if (includeRows.length === 0) {
+    appStore.warning('请至少添加一个 OR 或 AND 关键词规则')
     return
   }
+
+  const keywordIds = Array.from(new Set(includeRows.map((row) => Number(row.keywordId))))
+  const excludeKeywordIds = Array.from(new Set(excludeRows.map((row) => Number(row.keywordId))))
+  const ruleType: EmailRuleType =
+    excludeKeywordIds.length > 0
+      ? 'NOT'
+      : includeRows.length > 1 && includeRows.every((row) => row.operator === 'AND')
+        ? 'AND'
+        : 'OR'
 
   saving.value = true
   try {
     const payload = {
       name: form.name.trim(),
-      rule_type: form.rule_type,
-      keyword_ids: form.keyword_ids.map(Number),
-      exclude_keyword_ids: form.rule_type === 'NOT' ? form.exclude_keyword_ids.map(Number) : [],
+      rule_type: ruleType,
+      keyword_ids: keywordIds,
+      exclude_keyword_ids: ruleType === 'NOT' ? excludeKeywordIds : [],
       threshold: Number(form.threshold),
       enabled: form.enabled,
       recipients: form.recipients.trim() || null,
@@ -448,6 +481,20 @@ async function saveTopic() {
   } finally {
     saving.value = false
   }
+}
+
+function topicDisplayRules(topic: EmailTopicRule): TopicDisplayRule[] {
+  const includeOperator: RuleOperator = topic.rule_type === 'AND' ? 'AND' : 'OR'
+  return [
+    ...topic.keyword_ids.map((id) => ({
+      operator: includeOperator,
+      keyword: keywordName(id),
+    })),
+    ...topic.exclude_keyword_ids.map((id) => ({
+      operator: 'NOT' as RuleOperator,
+      keyword: keywordName(id),
+    })),
+  ]
 }
 
 async function toggleTopic(topic: EmailTopicRule) {
