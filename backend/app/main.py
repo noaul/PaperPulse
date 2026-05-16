@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import json as json_mod
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +13,29 @@ from .models import Setting
 from sqlalchemy import select
 import json
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+# Structured JSON log formatter for production
+class _JsonFormatter(logging.Formatter):
+    def format(self, record):
+        obj = {
+            "ts": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            obj["exc"] = self.formatException(record.exc_info)
+        return json_mod.dumps(obj, ensure_ascii=False)
+
+
+_LOG_FORMAT = os.environ.get("LOG_FORMAT", "text")  # "json" or "text"
+if _LOG_FORMAT == "json":
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_JsonFormatter())
+    logging.root.handlers = [_handler]
+    logging.root.setLevel(logging.INFO)
+else:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
@@ -60,6 +83,19 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
+    # Mark any stale 'running' executions as interrupted (from previous crashes)
+    async with SessionLocal() as db:
+        from .models import WorkflowExecution
+        from sqlalchemy import update
+        from datetime import datetime, timezone
+        await db.execute(
+            update(WorkflowExecution)
+            .where(WorkflowExecution.status == "running")
+            .values(status="interrupted", error_message="Process restarted before completion")
+        )
+        await db.commit()
+        logger.info("Cleaned up stale running executions")
+
     hour, minute = _get_schedule_config_sync()
     scheduler.add_job(daily_job, "cron", hour=hour, minute=minute, id="daily_job", replace_existing=True)
     scheduler.start()
@@ -76,7 +112,7 @@ app = FastAPI(title="PaperPulse", version="1.0.0", lifespan=lifespan)
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        # Allow auth endpoints and non-API paths
+        # Allow auth endpoints, health check, and non-API paths
         if not path.startswith("/api/") or path.startswith("/api/auth/") or path == "/api/health":
             return await call_next(request)
 
@@ -86,25 +122,35 @@ class AuthMiddleware(BaseHTTPMiddleware):
             admin_user = result.scalar_one_or_none()
 
             if not admin_user:
-                # No admin registered yet, allow access
                 return await call_next(request)
 
-            # Verify token
-            auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
-                return JSONResponse(status_code=401, content={"detail": "未登录"})
+        # Verify JWT token (no DB query needed)
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(status_code=401, content={"detail": "未登录"})
 
-            token = auth_header[7:]
-            result = await db.execute(select(Setting).where(Setting.key == "auth_token"))
-            token_row = result.scalar_one_or_none()
-
-            if not token_row or token_row.value != token:
-                return JSONResponse(status_code=401, content={"detail": "登录已过期，请重新登录"})
+        from .routers.auth import verify_token
+        token = auth_header[7:]
+        payload = verify_token(token)
+        if payload is None:
+            return JSONResponse(status_code=401, content={"detail": "登录已过期，请重新登录"})
 
         return await call_next(request)
 
 
 app.add_middleware(AuthMiddleware)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows, reports, reading_queue, zotero, workspaces, email_topic_rules

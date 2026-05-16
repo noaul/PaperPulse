@@ -188,3 +188,18 @@ async def list_report_deliveries(
         .order_by(desc(EmailDelivery.created_at), desc(EmailDelivery.id))
     )
     return [delivery_out(delivery) for delivery in result.scalars().all()]
+
+
+
+@router.post("/digest")
+async def generate_digest(
+    days: int = Query(7, ge=1, le=90),
+    min_score: float = Query(5.0, ge=0, le=10),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from ..services.literature_digest import generate_literature_digest
+    digest = await generate_literature_digest(db, workspace.id, days=days, min_score=min_score)
+    if digest is None:
+        return {"success": True, "digest": None, "message": "数据不足或 AI 未配置，无法生成综述"}
+    return {"success": True, "digest": digest}

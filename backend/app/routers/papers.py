@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..dependencies import get_current_workspace
@@ -11,6 +11,19 @@ from typing import Optional
 import math
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
+
+
+# Subquery: best analysis score per paper in workspace
+def _best_score_subquery(workspace_id: int):
+    return (
+        select(
+            AnalysisResult.paper_id,
+            func.max(AnalysisResult.relevance_score).label("best_score"),
+        )
+        .where(AnalysisResult.workspace_id == workspace_id)
+        .group_by(AnalysisResult.paper_id)
+        .subquery()
+    )
 
 
 @router.get("")
@@ -27,99 +40,88 @@ async def list_papers(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     effective_min_score = min_score if min_score is not None else min_relevance
+    best_score_sq = _best_score_subquery(workspace.id)
 
-    # Build base query
-    query = (
-        select(Paper, Feed.journal_name)
+    # Base query with LEFT JOIN to get best score in one pass
+    base = (
+        select(
+            Paper,
+            Feed.journal_name,
+            best_score_sq.c.best_score,
+        )
         .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .outerjoin(best_score_sq, Paper.id == best_score_sq.c.paper_id)
         .where(Paper.workspace_id == workspace.id)
     )
 
+    # Filters
     if feed_id:
-        query = query.where(Paper.feed_id == feed_id)
+        base = base.where(Paper.feed_id == feed_id)
     if journal:
-        query = query.where(Feed.journal_name == journal)
+        base = base.where(Feed.journal_name == journal)
     if search:
-        query = query.where(Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%"))
-
-    # If keyword or min_score filters are used, fetch a larger set and filter in Python
-    needs_post_filter = keyword or effective_min_score is not None
-    if needs_post_filter:
-        # Fetch enough rows to fill multiple pages after filtering
-        fetch_limit = page * page_size * 5
-        query = query.order_by(desc(Paper.fetched_at)).limit(fetch_limit)
-    else:
-        # Count total for simple queries
-        count_query = select(func.count(Paper.id)).where(Paper.workspace_id == workspace.id)
-        if feed_id:
-            count_query = count_query.where(Paper.feed_id == feed_id)
-        if journal:
-            count_query = count_query.select_from(Paper).outerjoin(Feed, Paper.feed_id == Feed.id)
-            count_query = count_query.where(Feed.journal_name == journal)
-        if search:
-            count_query = count_query.where(
-                Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%")
+        base = base.where(Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%"))
+    if effective_min_score is not None:
+        base = base.where(best_score_sq.c.best_score >= effective_min_score)
+    if keyword:
+        # Join through AnalysisResult+Keyword to filter by keyword match
+        kw_exists = (
+            select(AnalysisResult.paper_id)
+            .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
+            .where(
+                AnalysisResult.workspace_id == workspace.id,
+                Keyword.word.ilike(f"%{keyword}%"),
             )
-        count_result = await db.execute(count_query)
-        total = count_result.scalar() or 0
+        ).correlate(Paper)
+        base = base.where(Paper.id.in_(kw_exists))
 
-        query = query.order_by(desc(Paper.fetched_at)).offset((page - 1) * page_size).limit(page_size)
+    # Count
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
 
+    # Paginate
+    query = base.order_by(desc(Paper.fetched_at)).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     rows = result.all()
 
+    # Get summaries for these papers in one batch
+    paper_ids = [row[0].id for row in rows]
+    summaries: dict[int, tuple[float, str]] = {}
+    if paper_ids:
+        ar_q = (
+            select(AnalysisResult.paper_id, AnalysisResult.relevance_score, AnalysisResult.summary)
+            .where(
+                AnalysisResult.workspace_id == workspace.id,
+                AnalysisResult.paper_id.in_(paper_ids),
+            )
+            .order_by(AnalysisResult.paper_id, desc(AnalysisResult.relevance_score))
+        )
+        ar_rows = (await db.execute(ar_q)).all()
+        for paper_id, score, summary in ar_rows:
+            if paper_id not in summaries:
+                summaries[paper_id] = (score, summary)
+
     papers = []
-    for paper, journal_name in rows:
+    for paper, journal_name, best_score in rows:
         po = PaperOut.model_validate(paper)
         po.title = clean_text(po.title)
         po.authors = clean_text(po.authors)
         po.abstract = clean_text(po.abstract)
         po.url = normalize_paper_url(po.url)
         po.journal_name = journal_name
-
-        # Get best analysis score
-        ar_result = await db.execute(
-            select(AnalysisResult, Keyword.word)
-            .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
-            .where(AnalysisResult.paper_id == paper.id)
-            .where(AnalysisResult.workspace_id == workspace.id)
-            .order_by(desc(AnalysisResult.relevance_score))
-            .limit(1)
-        )
-        ar_row = ar_result.first()
-        if ar_row:
-            po.relevance_score = ar_row[0].relevance_score
-            po.analysis_summary = ar_row[0].summary
-
-        if keyword:
-            kw_result = await db.execute(
-                select(AnalysisResult).join(Keyword).where(
-                    AnalysisResult.paper_id == paper.id,
-                    AnalysisResult.workspace_id == workspace.id,
-                    Keyword.word.ilike(f"%{keyword}%"),
-                )
-            )
-            if not kw_result.first():
-                continue
-
-        if effective_min_score is not None and (po.relevance_score or 0) < effective_min_score:
-            continue
-
+        if paper.id in summaries:
+            po.relevance_score = summaries[paper.id][0]
+            po.analysis_summary = summaries[paper.id][1]
+        elif best_score is not None:
+            po.relevance_score = best_score
         papers.append(po)
-
-    if needs_post_filter:
-        total = len(papers)
-        start = (page - 1) * page_size
-        papers = papers[start:start + page_size]
-
-    pages = max(1, math.ceil(total / page_size))
 
     return {
         "items": papers,
         "total": total,
         "page": page,
         "page_size": page_size,
-        "pages": pages,
+        "pages": max(1, math.ceil(total / page_size)),
     }
 
 
@@ -136,7 +138,6 @@ async def get_paper(
     )
     row = result.first()
     if not row:
-        from fastapi import HTTPException
         raise HTTPException(404, "Paper not found")
     paper, journal_name = row
     po = PaperOut.model_validate(paper)
@@ -146,17 +147,15 @@ async def get_paper(
     po.url = normalize_paper_url(po.url)
     po.journal_name = journal_name
     ar_result = await db.execute(
-        select(AnalysisResult, Keyword.word)
-        .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
-        .where(AnalysisResult.paper_id == paper.id)
-        .where(AnalysisResult.workspace_id == workspace.id)
+        select(AnalysisResult.relevance_score, AnalysisResult.summary)
+        .where(AnalysisResult.paper_id == paper.id, AnalysisResult.workspace_id == workspace.id)
         .order_by(desc(AnalysisResult.relevance_score))
         .limit(1)
     )
     ar_row = ar_result.first()
     if ar_row:
-        po.relevance_score = ar_row[0].relevance_score
-        po.analysis_summary = ar_row[0].summary
+        po.relevance_score = ar_row[0]
+        po.analysis_summary = ar_row[1]
     return po
 
 
@@ -179,3 +178,15 @@ async def sync_paper_weknora(
         "weknora_knowledge_id": sync.weknora_knowledge_id,
         "error_message": sync.error_message,
     }
+
+
+
+@router.post("/enrich-abstracts")
+async def enrich_abstracts(
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from ..services.abstract_enrichment import enrich_recent_papers
+    enriched = await enrich_recent_papers(db, workspace.id, limit=limit)
+    return {"success": True, "enriched_count": enriched}

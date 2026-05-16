@@ -1,14 +1,29 @@
-import hashlib
 import json
-import uuid
-from fastapi import APIRouter, Depends, HTTPException
+import os
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+
+import bcrypt
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..database import get_db
 from ..models import Setting
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+JWT_SECRET = os.environ.get("JWT_SECRET", "paperpulse-change-me-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = int(os.environ.get("JWT_EXPIRE_HOURS", "168"))  # 7 days
+
+# Simple in-memory rate limiter for login attempts
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW_SECONDS = 60
 
 
 class LoginRequest(BaseModel):
@@ -27,7 +42,47 @@ class TokenResponse(BaseModel):
 
 
 def _hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    # Support legacy SHA-256 hashes for seamless migration
+    import hashlib
+    if len(hashed) == 64 and all(c in "0123456789abcdef" for c in hashed):
+        if hashlib.sha256(password.encode()).hexdigest() == hashed:
+            return True
+        return False
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
+
+def _create_token(username: str) -> str:
+    payload = {
+        "sub": username,
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_token(token: str) -> dict | None:
+    """Verify JWT token and return payload, or None if invalid."""
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+
+
+def _check_rate_limit(client_ip: str) -> None:
+    now = time.time()
+    attempts = _login_attempts[client_ip]
+    # Remove old entries
+    _login_attempts[client_ip] = [t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS]
+    if len(_login_attempts[client_ip]) >= _LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(429, "登录尝试过于频繁，请稍后再试")
+
+
+def _record_attempt(client_ip: str) -> None:
+    _login_attempts[client_ip].append(time.time())
 
 
 async def _get_admin_user(db: AsyncSession) -> dict | None:
@@ -49,35 +104,26 @@ async def _save_admin_user(db: AsyncSession, username: str, password_hash: str):
     await db.commit()
 
 
-async def _save_token(db: AsyncSession, token: str):
-    result = await db.execute(select(Setting).where(Setting.key == "auth_token"))
-    row = result.scalar_one_or_none()
-    if row:
-        row.value = token
-    else:
-        db.add(Setting(key="auth_token", value=token))
-    await db.commit()
-
-
-async def _get_token(db: AsyncSession) -> str | None:
-    result = await db.execute(select(Setting).where(Setting.key == "auth_token"))
-    row = result.scalar_one_or_none()
-    if row:
-        return row.value
-    return None
-
-
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     user = await _get_admin_user(db)
     if not user:
+        _record_attempt(client_ip)
         raise HTTPException(400, "未注册管理员账户，请先注册")
 
-    if user["username"] != req.username or user["password_hash"] != _hash_password(req.password):
+    if user["username"] != req.username or not _verify_password(req.password, user["password_hash"]):
+        _record_attempt(client_ip)
         raise HTTPException(401, "用户名或密码错误")
 
-    token = str(uuid.uuid4())
-    await _save_token(db, token)
+    # Auto-upgrade legacy SHA-256 hash to bcrypt on successful login
+    if len(user["password_hash"]) == 64:
+        new_hash = _hash_password(req.password)
+        await _save_admin_user(db, user["username"], new_hash)
+
+    token = _create_token(user["username"])
     return TokenResponse(token=token, username=user["username"])
 
 
@@ -93,8 +139,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     password_hash = _hash_password(req.password)
     await _save_admin_user(db, req.username, password_hash)
 
-    token = str(uuid.uuid4())
-    await _save_token(db, token)
+    token = _create_token(req.username)
     return TokenResponse(token=token, username=req.username)
 
 

@@ -1,10 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import text
+from sqlalchemy import text, event, Index
 import os
 
 DB_PATH = os.environ.get("DB_PATH", "/app/data/paperpulse.db")
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite+aiosqlite:///{DB_PATH}")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
@@ -21,8 +21,27 @@ async def get_db():
 
 async def init_db():
     async with engine.begin() as conn:
+        # SQLite performance PRAGMAs
+        if "sqlite" in DATABASE_URL:
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            await conn.execute(text("PRAGMA synchronous=NORMAL"))
+            await conn.execute(text("PRAGMA busy_timeout=5000"))
+            await conn.execute(text("PRAGMA cache_size=-32000"))
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_compat_columns(conn)
+        await _ensure_indexes(conn)
+
+
+async def _ensure_indexes(conn) -> None:
+    """Create composite indexes for common query patterns."""
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS ix_analysis_ws_paper ON analysis_results(workspace_id, paper_id)",
+        "CREATE INDEX IF NOT EXISTS ix_analysis_ws_score ON analysis_results(workspace_id, relevance_score)",
+        "CREATE INDEX IF NOT EXISTS ix_paper_ws_fetched ON papers(workspace_id, fetched_at DESC)",
+        "CREATE INDEX IF NOT EXISTS ix_paper_ws_feed ON papers(workspace_id, feed_id)",
+    ]
+    for sql in indexes:
+        await conn.execute(text(sql))
 
 
 async def _has_column(conn, table_name: str, column_name: str) -> bool:
