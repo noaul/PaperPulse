@@ -2,7 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
-from ..models import AnalysisResult, Paper, Keyword, Feed, ReadingQueueItem
+from ..dependencies import get_current_workspace
+from ..models import AnalysisResult, Paper, Keyword, Feed, ReadingQueueItem, Workspace
 from ..schemas import AnalysisOut, ReadingQueueItemOut
 from .reading_queue import item_out
 from ..services.rss_fetcher import clean_text, normalize_paper_url
@@ -26,8 +27,9 @@ async def list_analyses(
     page_size: int = Query(20, ge=1, le=100),
     min_score: Optional[float] = None,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    count_query = select(func.count(AnalysisResult.id))
+    count_query = select(func.count(AnalysisResult.id)).where(AnalysisResult.workspace_id == workspace.id)
     if min_score is not None:
         count_query = count_query.where(AnalysisResult.relevance_score >= min_score)
     total_result = await db.execute(count_query)
@@ -46,6 +48,7 @@ async def list_analyses(
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
+        .where(AnalysisResult.workspace_id == workspace.id)
         .order_by(desc(AnalysisResult.analyzed_at), desc(AnalysisResult.relevance_score))
     )
     if min_score is not None:
@@ -74,8 +77,11 @@ async def list_analyses(
 
 
 @router.post("/run")
-async def run_analysis(db: AsyncSession = Depends(get_db)):
-    execution = await run_analysis_workflow(db)
+async def run_analysis(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await run_analysis_workflow(db, workspace_id=workspace.id)
     summary = execution.summary_dict
     return {
         "success": execution.status == "success",
@@ -89,8 +95,9 @@ async def run_analysis(db: AsyncSession = Depends(get_db)):
 async def run_analysis_background(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    execution = await create_analysis_workflow_execution(db)
+    execution = await create_analysis_workflow_execution(db, workspace_id=workspace.id)
     background_tasks.add_task(run_analysis_workflow_execution, execution.id)
     return {
         "success": True,
@@ -102,8 +109,11 @@ async def run_analysis_background(
 
 
 @router.post("/fetch-and-analyze")
-async def fetch_and_analyze(db: AsyncSession = Depends(get_db)):
-    execution = await run_fetch_analyze_workflow(db)
+async def fetch_and_analyze(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await run_fetch_analyze_workflow(db, workspace_id=workspace.id)
     summary = execution.summary_dict
     return {
         "success": execution.status == "success",
@@ -118,8 +128,9 @@ async def fetch_and_analyze(db: AsyncSession = Depends(get_db)):
 async def fetch_and_analyze_background(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    execution = await create_fetch_analyze_workflow_execution(db)
+    execution = await create_fetch_analyze_workflow_execution(db, workspace_id=workspace.id)
     background_tasks.add_task(run_fetch_analyze_workflow_execution, execution.id)
     return {
         "success": True,
@@ -132,8 +143,11 @@ async def fetch_and_analyze_background(
 
 
 @router.post("/send-report")
-async def send_report(db: AsyncSession = Depends(get_db)):
-    execution = await run_send_report_workflow(db)
+async def send_report(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await run_send_report_workflow(db, workspace_id=workspace.id)
     summary = execution.summary_dict
     return {
         "success": execution.status == "success" and bool(summary.get("email_sent")),
@@ -146,12 +160,16 @@ async def send_report(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{analysis_id}/add-to-reading-queue", response_model=ReadingQueueItemOut)
-async def add_analysis_to_reading_queue(analysis_id: int, db: AsyncSession = Depends(get_db)):
+async def add_analysis_to_reading_queue(
+    analysis_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
     result = await db.execute(
         select(AnalysisResult, Paper, Keyword)
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
-        .where(AnalysisResult.id == analysis_id)
+        .where(AnalysisResult.id == analysis_id, AnalysisResult.workspace_id == workspace.id)
     )
     row = result.first()
     if not row:
@@ -159,7 +177,7 @@ async def add_analysis_to_reading_queue(analysis_id: int, db: AsyncSession = Dep
 
     analysis, paper, keyword = row
     normalized_url = normalize_paper_url(paper.url)
-    existing_query = select(ReadingQueueItem)
+    existing_query = select(ReadingQueueItem).where(ReadingQueueItem.workspace_id == workspace.id)
     if normalized_url:
         existing_query = existing_query.where(ReadingQueueItem.url == normalized_url)
     else:
@@ -177,6 +195,7 @@ async def add_analysis_to_reading_queue(analysis_id: int, db: AsyncSession = Dep
 
     item = ReadingQueueItem(
         title=clean_text(paper.title),
+        workspace_id=workspace.id,
         url=normalized_url,
         abstract=clean_text(paper.abstract),
         notes=(

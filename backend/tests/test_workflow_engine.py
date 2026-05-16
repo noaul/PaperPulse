@@ -216,8 +216,10 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
             *,
             raise_errors=False,
             paper_ids=None,
+            workspace_id=None,
         ):
             captured["paper_ids"] = paper_ids
+            captured["workspace_id"] = workspace_id
             if progress_callback:
                 await progress_callback({
                     "analysis_total": len(paper_ids or []),
@@ -241,6 +243,7 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
                 await AiAnalyzeNode().run(context)
 
                 self.assertEqual([10, 11, 12], captured["paper_ids"])
+                self.assertEqual(1, captured["workspace_id"])
                 self.assertEqual(3, context.summary["analysis_total"])
         finally:
             ai_analyze_node_module.analyze_new_papers = original_analyze
@@ -256,11 +259,13 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
             paper_ids=None,
             analyzed_count=None,
             related_count=None,
+            workspace_id=1,
         ):
             captured["threshold"] = threshold
             captured["paper_ids"] = paper_ids
             captured["analyzed_count"] = analyzed_count
             captured["related_count"] = related_count
+            captured["workspace_id"] = workspace_id
             return {
                 "report_id": 123,
                 "sent": True,
@@ -292,6 +297,7 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([10, 11, 12], captured["paper_ids"])
                 self.assertEqual(3, captured["analyzed_count"])
                 self.assertEqual(1, captured["related_count"])
+                self.assertEqual(1, captured["workspace_id"])
                 self.assertEqual(1, context.summary["email_paper_count"])
         finally:
             email_report_node_module.send_daily_report = original_send

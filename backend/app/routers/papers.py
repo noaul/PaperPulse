@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
-from ..models import Paper, Feed, AnalysisResult, Keyword
+from ..dependencies import get_current_workspace
+from ..models import Paper, Feed, AnalysisResult, Keyword, Workspace
 from ..schemas import PaperOut
 from ..services.rss_fetcher import clean_text, normalize_paper_url
 from ..services.weknora_sync import sync_paper_to_weknora
@@ -23,11 +24,16 @@ async def list_papers(
     min_relevance: Optional[float] = None,
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
     effective_min_score = min_score if min_score is not None else min_relevance
 
     # Build base query
-    query = select(Paper, Feed.journal_name).outerjoin(Feed, Paper.feed_id == Feed.id)
+    query = (
+        select(Paper, Feed.journal_name)
+        .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .where(Paper.workspace_id == workspace.id)
+    )
 
     if feed_id:
         query = query.where(Paper.feed_id == feed_id)
@@ -44,7 +50,7 @@ async def list_papers(
         query = query.order_by(desc(Paper.fetched_at)).limit(fetch_limit)
     else:
         # Count total for simple queries
-        count_query = select(func.count(Paper.id))
+        count_query = select(func.count(Paper.id)).where(Paper.workspace_id == workspace.id)
         if feed_id:
             count_query = count_query.where(Paper.feed_id == feed_id)
         if journal:
@@ -76,6 +82,7 @@ async def list_papers(
             select(AnalysisResult, Keyword.word)
             .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
             .where(AnalysisResult.paper_id == paper.id)
+            .where(AnalysisResult.workspace_id == workspace.id)
             .order_by(desc(AnalysisResult.relevance_score))
             .limit(1)
         )
@@ -88,6 +95,7 @@ async def list_papers(
             kw_result = await db.execute(
                 select(AnalysisResult).join(Keyword).where(
                     AnalysisResult.paper_id == paper.id,
+                    AnalysisResult.workspace_id == workspace.id,
                     Keyword.word.ilike(f"%{keyword}%"),
                 )
             )
@@ -116,8 +124,16 @@ async def list_papers(
 
 
 @router.get("/{paper_id}", response_model=PaperOut)
-async def get_paper(paper_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Paper, Feed.journal_name).outerjoin(Feed).where(Paper.id == paper_id))
+async def get_paper(
+    paper_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    result = await db.execute(
+        select(Paper, Feed.journal_name)
+        .outerjoin(Feed)
+        .where(Paper.id == paper_id, Paper.workspace_id == workspace.id)
+    )
     row = result.first()
     if not row:
         from fastapi import HTTPException
@@ -133,6 +149,7 @@ async def get_paper(paper_id: int, db: AsyncSession = Depends(get_db)):
         select(AnalysisResult, Keyword.word)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .where(AnalysisResult.paper_id == paper.id)
+        .where(AnalysisResult.workspace_id == workspace.id)
         .order_by(desc(AnalysisResult.relevance_score))
         .limit(1)
     )
@@ -144,9 +161,13 @@ async def get_paper(paper_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{paper_id}/sync-weknora")
-async def sync_paper_weknora(paper_id: int, db: AsyncSession = Depends(get_db)):
+async def sync_paper_weknora(
+    paper_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
     try:
-        sync = await sync_paper_to_weknora(db, paper_id)
+        sync = await sync_paper_to_weknora(db, paper_id, workspace_id=workspace.id)
     except ValueError:
         raise HTTPException(404, "Paper not found")
     if not sync:

@@ -25,6 +25,12 @@ TRACKING_QUERY_PARAMS = {
 LATEST_FETCHED_PAPER_IDS_KEY = "latest_fetched_paper_ids"
 
 
+def latest_fetched_key(workspace_id: int | None = None) -> str:
+    if workspace_id is None:
+        return LATEST_FETCHED_PAPER_IDS_KEY
+    return f"{LATEST_FETCHED_PAPER_IDS_KEY}:{int(workspace_id)}"
+
+
 def parse_date(entry) -> datetime | None:
     for field in ("published_parsed", "updated_parsed"):
         val = getattr(entry, field, None)
@@ -126,12 +132,14 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
 
         # Deduplicate by DOI or URL
         if doi:
-            existing = await db.execute(select(Paper).where(Paper.doi == doi))
+            existing = await db.execute(select(Paper).where(Paper.doi == doi, Paper.workspace_id == feed.workspace_id))
             if existing.scalar_one_or_none():
                 continue
         elif link:
             candidate_urls = {link, str(raw_link).strip()}
-            existing = await db.execute(select(Paper).where(Paper.url.in_(candidate_urls)))
+            existing = await db.execute(
+                select(Paper).where(Paper.url.in_(candidate_urls), Paper.workspace_id == feed.workspace_id)
+            )
             if existing.scalar_one_or_none():
                 continue
 
@@ -145,6 +153,7 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
 
         paper = Paper(
             feed_id=feed.id,
+            workspace_id=feed.workspace_id,
             title=title,
             authors=authors,
             abstract=abstract,
@@ -165,23 +174,34 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
     return new_papers
 
 
-async def save_latest_fetched_paper_ids(db: AsyncSession, paper_ids: list[int]) -> None:
+async def save_latest_fetched_paper_ids(
+    db: AsyncSession,
+    paper_ids: list[int],
+    *,
+    workspace_id: int | None = None,
+) -> None:
     normalized = []
     for paper_id in paper_ids:
         if paper_id is not None and paper_id not in normalized:
             normalized.append(int(paper_id))
 
-    setting = await db.get(Setting, LATEST_FETCHED_PAPER_IDS_KEY)
     value = json.dumps(normalized)
-    if setting:
-        setting.value = value
-    else:
-        db.add(Setting(key=LATEST_FETCHED_PAPER_IDS_KEY, value=value))
+    keys = [latest_fetched_key(workspace_id)]
+    if workspace_id in (None, 1) and LATEST_FETCHED_PAPER_IDS_KEY not in keys:
+        keys.append(LATEST_FETCHED_PAPER_IDS_KEY)
+    for key in keys:
+        setting = await db.get(Setting, key)
+        if setting:
+            setting.value = value
+        else:
+            db.add(Setting(key=key, value=value))
     await db.commit()
 
 
-async def get_latest_fetched_paper_ids(db: AsyncSession) -> list[int] | None:
-    setting = await db.get(Setting, LATEST_FETCHED_PAPER_IDS_KEY)
+async def get_latest_fetched_paper_ids(db: AsyncSession, workspace_id: int | None = None) -> list[int] | None:
+    setting = await db.get(Setting, latest_fetched_key(workspace_id))
+    if not setting and workspace_id is not None:
+        setting = await db.get(Setting, LATEST_FETCHED_PAPER_IDS_KEY)
     if not setting:
         return None
     try:
@@ -202,12 +222,19 @@ async def get_latest_fetched_paper_ids(db: AsyncSession) -> list[int] | None:
     return ids
 
 
-async def fetch_all_feeds(db: AsyncSession) -> list[Paper]:
-    result = await db.execute(select(Feed).where(Feed.enabled == True))
+async def fetch_all_feeds(db: AsyncSession, workspace_id: int | None = None) -> list[Paper]:
+    query = select(Feed).where(Feed.enabled == True)
+    if workspace_id is not None:
+        query = query.where(Feed.workspace_id == workspace_id)
+    result = await db.execute(query)
     feeds = result.scalars().all()
     all_papers = []
     for feed in feeds:
         papers = await fetch_feed(db, feed)
         all_papers.extend(papers)
-    await save_latest_fetched_paper_ids(db, [paper.id for paper in all_papers if paper.id is not None])
+    await save_latest_fetched_paper_ids(
+        db,
+        [paper.id for paper in all_papers if paper.id is not None],
+        workspace_id=workspace_id,
+    )
     return all_papers

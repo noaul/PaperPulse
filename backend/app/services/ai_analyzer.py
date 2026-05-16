@@ -171,14 +171,16 @@ If not relevant at all, score 0 and summary "与研究方向无关".
 
     results = []
     matched = data.get("matched_keywords", [])
+    matched_normalized = {str(m).strip().lower() for m in matched}
     score = float(data.get("relevance_score", 0))
     summary = data.get("summary", "")
 
     for kw in keywords:
-        if kw.word.lower() in [m.lower() for m in matched] or score >= 5:
+        if kw.word.strip().lower() in matched_normalized:
             ar = AnalysisResult(
                 paper_id=paper.id,
                 keyword_id=kw.id,
+                workspace_id=paper.workspace_id,
                 relevance_score=score,
                 summary=summary,
             )
@@ -197,6 +199,7 @@ async def analyze_new_papers(
     control_callback: AnalysisControlCallback | None = None,
     *,
     paper_ids: list[int] | None = None,
+    workspace_id: int | None = None,
     raise_errors: bool = False,
 ) -> list[AnalysisResult]:
     config = await get_ai_config(db)
@@ -208,7 +211,10 @@ async def analyze_new_papers(
         return []
 
     # Get all enabled keywords
-    kw_result = await db.execute(select(Keyword).where(Keyword.enabled == True))
+    kw_query = select(Keyword).where(Keyword.enabled == True)
+    if workspace_id is not None:
+        kw_query = kw_query.where(Keyword.workspace_id == workspace_id)
+    kw_result = await db.execute(kw_query)
     keywords = kw_result.scalars().all()
     if not keywords:
         message = "未配置启用的主题词，请先在关键词页面添加主题词"
@@ -221,10 +227,14 @@ async def analyze_new_papers(
     # progress total tracks only the papers fetched in the current run.
     # Manual analysis uses the latest persisted fetch batch when available.
     if paper_ids is None:
-        paper_ids = await get_latest_fetched_paper_ids(db)
+        paper_ids = await get_latest_fetched_paper_ids(db, workspace_id=workspace_id)
 
     analyzed_ids = select(AnalysisResult.paper_id).distinct()
+    if workspace_id is not None:
+        analyzed_ids = analyzed_ids.where(AnalysisResult.workspace_id == workspace_id)
     paper_query = select(Paper).where(~Paper.id.in_(analyzed_ids))
+    if workspace_id is not None:
+        paper_query = paper_query.where(Paper.workspace_id == workspace_id)
     if paper_ids is not None:
         if not paper_ids:
             papers = []

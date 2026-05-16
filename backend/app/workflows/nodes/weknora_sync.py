@@ -11,10 +11,10 @@ class WeKnoraSyncNode(WorkflowNode):
         report_sync = None
         report_id = context.summary.get("email_report_id")
         if report_id:
-            report_sync = await sync_report_to_weknora(context.db, int(report_id))
+            report_sync = await sync_report_to_weknora(context.db, int(report_id), workspace_id=context.workspace_id)
 
         paper_ids = context.state.get("fetched_paper_ids") or []
-        paper_syncs = await sync_papers_to_weknora(context.db, list(paper_ids))
+        paper_syncs = await sync_papers_to_weknora(context.db, list(paper_ids), workspace_id=context.workspace_id)
 
         reports_synced = 1 if report_sync and report_sync.status == "success" else 0
         papers_synced = sum(1 for sync in paper_syncs if sync.status == "success")

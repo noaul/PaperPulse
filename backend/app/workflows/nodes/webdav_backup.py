@@ -14,7 +14,7 @@ class WebdavBackupNode(WorkflowNode):
             await context.log("info", "WebDAV backup skipped", {"reason": "not_configured"})
             return
 
-        exported = await export_data(context.db)
+        exported = await export_data(context.db, workspace_id=context.workspace_id)
         context.summary["webdav_exported"] = exported
         level = "info" if exported else "warning"
         await context.log(level, "WebDAV backup completed" if exported else "WebDAV backup failed", {

@@ -28,9 +28,11 @@ class WorkflowEngine:
         self,
         workflow_name: str,
         initial_summary: dict | None = None,
+        workspace_id: int = 1,
     ) -> WorkflowExecution:
         execution = WorkflowExecution(
             workflow_name=workflow_name,
+            workspace_id=workspace_id,
             status="running",
             started_at=utc_now(),
             summary_json=to_json(initial_summary or {}),
@@ -45,9 +47,10 @@ class WorkflowEngine:
         workflow_name: str,
         nodes: Iterable[WorkflowNode],
         *,
+        workspace_id: int = 1,
         raise_on_failure: bool = False,
     ) -> WorkflowExecution:
-        execution = await self.create_execution(workflow_name)
+        execution = await self.create_execution(workflow_name, workspace_id=workspace_id)
         return await self.run_existing(execution.id, nodes, raise_on_failure=raise_on_failure)
 
     async def run_existing(

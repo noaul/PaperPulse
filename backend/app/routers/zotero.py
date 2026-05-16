@@ -1,11 +1,12 @@
 import html
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import AnalysisResult, Keyword, Paper
+from ..dependencies import ensure_default_workspace
+from ..models import AnalysisResult, Keyword, Paper, Workspace
 from ..schemas import ZoteroAnalyzeRequest, ZoteroAnalyzeResponse
 from ..services.ai_analyzer import analyze_paper, get_ai_config
 from ..services.rss_fetcher import clean_text, normalize_paper_url
@@ -13,14 +14,18 @@ from ..services.rss_fetcher import clean_text, normalize_paper_url
 router = APIRouter(prefix="/api/zotero", tags=["zotero"])
 
 
-async def get_or_create_zotero_paper(db: AsyncSession, payload: ZoteroAnalyzeRequest) -> Paper:
+async def get_or_create_zotero_paper(db: AsyncSession, payload: ZoteroAnalyzeRequest, workspace_id: int) -> Paper:
     normalized_url = normalize_paper_url(payload.url)
     paper = None
 
     if payload.doi:
-        paper = (await db.execute(select(Paper).where(Paper.doi == payload.doi))).scalar_one_or_none()
+        paper = (await db.execute(
+            select(Paper).where(Paper.doi == payload.doi, Paper.workspace_id == workspace_id)
+        )).scalar_one_or_none()
     if not paper and normalized_url:
-        paper = (await db.execute(select(Paper).where(Paper.url == normalized_url))).scalar_one_or_none()
+        paper = (await db.execute(
+            select(Paper).where(Paper.url == normalized_url, Paper.workspace_id == workspace_id)
+        )).scalar_one_or_none()
 
     if paper:
         if not paper.abstract and payload.abstract:
@@ -34,6 +39,7 @@ async def get_or_create_zotero_paper(db: AsyncSession, payload: ZoteroAnalyzeReq
 
     paper = Paper(
         title=clean_text(payload.title),
+        workspace_id=workspace_id,
         authors=clean_text(payload.authors),
         abstract=clean_text(payload.abstract),
         doi=payload.doi or None,
@@ -61,17 +67,30 @@ def build_zotero_note(payload: ZoteroAnalyzeRequest, score: float, matched_keywo
 
 
 @router.post("/analyze", response_model=ZoteroAnalyzeResponse)
-async def analyze_zotero_item(payload: ZoteroAnalyzeRequest, db: AsyncSession = Depends(get_db)):
+async def analyze_zotero_item(
+    payload: ZoteroAnalyzeRequest,
+    workspace_id: int | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    if workspace_id is None:
+        workspace = await ensure_default_workspace(db)
+    else:
+        workspace = await db.get(Workspace, workspace_id)
+        if not workspace or not workspace.enabled:
+            raise HTTPException(404, "工作区不存在或已禁用")
+
     config = await get_ai_config(db)
     if not config.get("enabled") or not config.get("api_key"):
         raise HTTPException(400, "AI 未启用或 API Key 为空，请先在 PaperPulse 设置页配置 AI")
 
-    keyword_result = await db.execute(select(Keyword).where(Keyword.enabled == True))
+    keyword_result = await db.execute(
+        select(Keyword).where(Keyword.enabled == True, Keyword.workspace_id == workspace.id)
+    )
     keywords = keyword_result.scalars().all()
     if not keywords:
         raise HTTPException(400, "未配置启用的主题词，请先在 PaperPulse 关键词页面添加主题词")
 
-    paper = await get_or_create_zotero_paper(db, payload)
+    paper = await get_or_create_zotero_paper(db, payload, workspace.id)
     results = await analyze_paper(db, paper, keywords, config, raise_errors=True)
 
     if results:

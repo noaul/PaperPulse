@@ -49,10 +49,21 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '报告中心', requiresAuth: true },
   },
   {
+    path: '/email-topics',
+    name: 'EmailTopics',
+    component: () => import('@/views/EmailTopics.vue'),
+    meta: { title: '邮件主题', requiresAuth: true },
+  },
+  {
     path: '/keywords',
-    name: 'Keywords',
-    component: () => import('@/views/Keywords.vue'),
-    meta: { title: '关键词', requiresAuth: true },
+    redirect: '/email-topics',
+    meta: { title: '邮件主题', requiresAuth: true },
+  },
+  {
+    path: '/email-rules',
+    name: 'EmailTopicsLegacy',
+    redirect: '/email-topics',
+    meta: { title: '邮件主题', requiresAuth: true },
   },
   {
     path: '/settings',

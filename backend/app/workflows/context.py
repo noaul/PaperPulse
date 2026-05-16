@@ -19,6 +19,7 @@ class WorkflowContext:
     def __init__(self, db: AsyncSession, execution: WorkflowExecution):
         self.db = db
         self.execution = execution
+        self.workspace_id = execution.workspace_id
         self.current_node = "workflow"
         self.summary: dict[str, Any] = {}
         self.state: dict[str, Any] = {}

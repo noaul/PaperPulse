@@ -114,6 +114,7 @@ async def send_daily_report(
     paper_ids: list[int] | None = None,
     analyzed_count: int | None = None,
     related_count: int | None = None,
+    workspace_id: int = 1,
 ) -> dict:
     from .report_center import create_and_send_recent_report
 
@@ -124,6 +125,7 @@ async def send_daily_report(
         paper_ids=paper_ids,
         analyzed_count=analyzed_count,
         related_count=related_count,
+        workspace_id=workspace_id,
     )
     if result["sent"]:
         logger.info("Email sent: report=%s papers=%s", result["report_id"], result["paper_count"])

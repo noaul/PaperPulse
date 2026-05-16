@@ -205,12 +205,14 @@ class WeKnoraSyncTest(unittest.IsolatedAsyncioTestCase):
         original_sync_papers = weknora_sync_node_module.sync_papers_to_weknora
         calls = {}
 
-        async def fake_sync_report(db, report_id):
+        async def fake_sync_report(db, report_id, workspace_id=1):
             calls["report_id"] = report_id
+            calls["report_workspace_id"] = workspace_id
             return WeKnoraSync(report_id=report_id, sync_type="report", status="success", weknora_knowledge_id="wk-report")
 
-        async def fake_sync_papers(db, paper_ids):
+        async def fake_sync_papers(db, paper_ids, workspace_id=1):
             calls["paper_ids"] = paper_ids
+            calls["papers_workspace_id"] = workspace_id
             return [
                 WeKnoraSync(paper_id=paper_ids[0], sync_type="paper", status="success", weknora_knowledge_id="wk-paper")
             ]
@@ -235,7 +237,9 @@ class WeKnoraSyncTest(unittest.IsolatedAsyncioTestCase):
                 await WeKnoraSyncNode().run(context)
 
                 self.assertEqual(42, calls["report_id"])
+                self.assertEqual(1, calls["report_workspace_id"])
                 self.assertEqual([10, 11], calls["paper_ids"])
+                self.assertEqual(1, calls["papers_workspace_id"])
                 self.assertEqual(1, context.summary["weknora_reports_synced"])
                 self.assertEqual(1, context.summary["weknora_papers_synced"])
         finally:

@@ -8,7 +8,7 @@ class FetchRssNode(WorkflowNode):
         super().__init__("fetch-rss")
 
     async def run(self, context: WorkflowContext) -> None:
-        papers = await fetch_all_feeds(context.db)
+        papers = await fetch_all_feeds(context.db, workspace_id=context.workspace_id)
         paper_ids = [paper.id for paper in papers if paper.id is not None]
         context.state["fetched_paper_ids"] = paper_ids
         await context.update_summary(

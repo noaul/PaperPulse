@@ -164,6 +164,7 @@ async def sync_report_to_weknora(
     db: AsyncSession,
     report_id: int,
     *,
+    workspace_id: int = 1,
     client: ManualKnowledgeClient | None = None,
 ) -> WeKnoraSync | None:
     config = await get_weknora_config(db)
@@ -175,10 +176,10 @@ async def sync_report_to_weknora(
         return existing
 
     report = await db.get(Report, report_id)
-    if not report:
+    if not report or report.workspace_id != workspace_id:
         raise ValueError("Report not found")
 
-    sync = WeKnoraSync(report_id=report.id, sync_type="report", status="pending")
+    sync = WeKnoraSync(report_id=report.id, workspace_id=workspace_id, sync_type="report", status="pending")
     db.add(sync)
     await db.flush()
 
@@ -206,6 +207,7 @@ async def sync_paper_to_weknora(
     db: AsyncSession,
     paper_id: int,
     *,
+    workspace_id: int = 1,
     client: ManualKnowledgeClient | None = None,
 ) -> WeKnoraSync | None:
     config = await get_weknora_config(db)
@@ -217,7 +219,7 @@ async def sync_paper_to_weknora(
         return existing
 
     paper = await db.get(Paper, paper_id)
-    if not paper:
+    if not paper or paper.workspace_id != workspace_id:
         raise ValueError("Paper not found")
 
     rows = await _paper_analysis_rows(db, paper_id)
@@ -225,7 +227,7 @@ async def sync_paper_to_weknora(
     if best_score < float(config.get("min_score_to_sync", 0) or 0):
         return None
 
-    sync = WeKnoraSync(paper_id=paper.id, sync_type="paper", status="pending")
+    sync = WeKnoraSync(paper_id=paper.id, workspace_id=workspace_id, sync_type="paper", status="pending")
     db.add(sync)
     await db.flush()
 
@@ -249,10 +251,10 @@ async def sync_paper_to_weknora(
     return sync
 
 
-async def sync_papers_to_weknora(db: AsyncSession, paper_ids: list[int]) -> list[WeKnoraSync]:
+async def sync_papers_to_weknora(db: AsyncSession, paper_ids: list[int], workspace_id: int = 1) -> list[WeKnoraSync]:
     syncs = []
     for paper_id in paper_ids:
-        sync = await sync_paper_to_weknora(db, paper_id)
+        sync = await sync_paper_to_weknora(db, paper_id, workspace_id=workspace_id)
         if sync:
             syncs.append(sync)
     return syncs

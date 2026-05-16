@@ -430,3 +430,36 @@
 - Git:
   - 已提交并推送：`3e4458b feat: add zotero analyzer plugin`。
   - `zotero-plugin/dist/` 已由 `zotero-plugin/.gitignore` 排除，仓库提交源码和构建脚本，不提交可再生成的 XPI。
+
+## 2026-05-16：阶段 21 多工作区、关键词逻辑和分主题邮件
+- 用户确认开始实现：
+  - 新增通用工作区功能，不绑定具体研究领域名称。
+  - 每个工作区下功能一致：订阅源、关键词、论文、分析结果、报告、阅读队列、工作流和邮件规则。
+  - 工作区内需要支持 A OR B、A AND B、A NOT B 的邮件主题规则，并分邮件推送。
+- 执行策略：
+  - 使用 TDD，先写红灯测试，再实现。
+  - 第一版保留现有 `/api/...` 路径，避免破坏前端和 Zotero 插件。
+  - 保留现有 `settings` 作为全局设置，新增工作区级设置和工作区上下文。
+  - 暂不做论文内容缓存层，先完成数据隔离和分主题邮件闭环。
+- 当前步骤：
+  - 编写工作区隔离、AI 真实关键词命中、主题规则 OR/AND/NOT 的红灯测试。
+- 已实现：
+  - 新增 `Workspace`、`WorkspaceSetting`、`EmailTopicRule` 模型。
+  - 新增 `/api/workspaces` 和 `/api/email-topic-rules`。
+  - 新增 `get_current_workspace`，前端通过 `X-Workspace-Id` 传当前工作区；缺省时回退默认工作区，兼容旧客户端。
+  - 为 feeds、keywords、papers、analysis、reports、reading queue、executions、workflow、RSS 抓取、AI 分析、WebDAV、WeKnora、Zotero 入口接入工作区隔离。
+  - `init_db()` 增加 SQLite 兼容列补齐：现有部署启动时自动添加 `workspace_id` 等列，并创建默认工作区。
+  - 修复 AI 分析：只为 AI 返回的 `matched_keywords` 创建 `AnalysisResult`，移除 `score >= 5` 导致所有关键词误命中的逻辑。
+  - 报告中心支持按邮件主题规则过滤，规则支持 OR / AND / NOT；工作流邮件节点会按启用规则分主题生成报告并发送。
+  - 前端新增顶部工作区选择器、新建工作区按钮、邮件规则页面 `/email-rules`，Axios 自动带当前工作区 Header。
+- 验证：
+  - 红灯测试先失败：工作区创建 405、主题规则引擎缺失、AI 命中测试返回 2 条而非 1 条。
+  - 修复后目标回归：`docker run ... python -m unittest tests.test_workspaces tests.test_ai_analyzer tests.test_email_topic_rules tests.test_reports tests.test_workflow_engine`：29 tests OK。
+  - 扩展后端回归：`docker run ... python -m unittest discover tests`：53 tests OK。
+  - `npm run build`：通过，生成 `EmailRules-BxCgq9hm.js` 等新静态资源。
+  - `python -m compileall backend\app`：通过。
+  - `docker compose up -d --build`：通过，本地容器 `paperpulse` healthy。
+  - 本地 `/api/health`、`/login`、`/email-rules`：200。
+- UI 说明：
+  - 用户提供了更完整的前端 UI 优化建议。
+  - 本轮只采纳必要入口：工作区切换器和邮件规则页；顶部导航重构、分析三栏布局、论文卡片/表格双模式、全局搜索、暗色模式细化等作为后续视觉专项处理，避免和核心数据改造混在一起。

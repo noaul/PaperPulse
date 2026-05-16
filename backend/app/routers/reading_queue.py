@@ -3,7 +3,8 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import ReadingQueueItem
+from ..dependencies import get_current_workspace
+from ..models import ReadingQueueItem, Workspace
 from ..schemas import (
     ReadingQueueItemCreate,
     ReadingQueueItemOut,
@@ -28,8 +29,13 @@ def item_out(item: ReadingQueueItem) -> ReadingQueueItemOut:
     )
 
 
-async def get_item_or_404(db: AsyncSession, item_id: int) -> ReadingQueueItem:
-    result = await db.execute(select(ReadingQueueItem).where(ReadingQueueItem.id == item_id))
+async def get_item_or_404(db: AsyncSession, item_id: int, workspace_id: int) -> ReadingQueueItem:
+    result = await db.execute(
+        select(ReadingQueueItem).where(
+            ReadingQueueItem.id == item_id,
+            ReadingQueueItem.workspace_id == workspace_id,
+        )
+    )
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(404, "Reading queue item not found")
@@ -44,9 +50,10 @@ async def list_items(
     status: str | None = None,
     tag: str | None = None,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    query = select(ReadingQueueItem)
-    count_query = select(func.count(ReadingQueueItem.id))
+    query = select(ReadingQueueItem).where(ReadingQueueItem.workspace_id == workspace.id)
+    count_query = select(func.count(ReadingQueueItem.id)).where(ReadingQueueItem.workspace_id == workspace.id)
 
     if search:
         like = f"%{search.strip()}%"
@@ -85,8 +92,13 @@ async def list_items(
 
 
 @router.post("", response_model=ReadingQueueItemOut)
-async def create_item(payload: ReadingQueueItemCreate, db: AsyncSession = Depends(get_db)):
+async def create_item(
+    payload: ReadingQueueItemCreate,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
     item = ReadingQueueItem(
+        workspace_id=workspace.id,
         title=payload.title.strip(),
         url=payload.url.strip(),
         abstract=payload.abstract.strip(),
@@ -101,14 +113,23 @@ async def create_item(payload: ReadingQueueItemCreate, db: AsyncSession = Depend
 
 
 @router.get("/{item_id}", response_model=ReadingQueueItemOut)
-async def get_item(item_id: int, db: AsyncSession = Depends(get_db)):
-    item = await get_item_or_404(db, item_id)
+async def get_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    item = await get_item_or_404(db, item_id, workspace.id)
     return item_out(item)
 
 
 @router.put("/{item_id}", response_model=ReadingQueueItemOut)
-async def update_item(item_id: int, payload: ReadingQueueItemUpdate, db: AsyncSession = Depends(get_db)):
-    item = await get_item_or_404(db, item_id)
+async def update_item(
+    item_id: int,
+    payload: ReadingQueueItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    item = await get_item_or_404(db, item_id, workspace.id)
     data = payload.model_dump(exclude_unset=True)
 
     if "title" in data:
@@ -131,8 +152,12 @@ async def update_item(item_id: int, payload: ReadingQueueItemUpdate, db: AsyncSe
 
 
 @router.delete("/{item_id}")
-async def delete_item(item_id: int, db: AsyncSession = Depends(get_db)):
-    item = await get_item_or_404(db, item_id)
+async def delete_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    item = await get_item_or_404(db, item_id, workspace.id)
     await db.delete(item)
     await db.commit()
     return {"success": True}

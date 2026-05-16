@@ -4,18 +4,20 @@ from datetime import datetime, timezone
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import AnalysisResult, EmailDelivery, Feed, Keyword, Paper, Report, ReportItem, Setting
+from ..models import AnalysisResult, EmailDelivery, EmailTopicRule, Feed, Keyword, Paper, Report, ReportItem, Setting
 from .email_sender import build_email_html, get_email_config, open_smtp_connection
 from .rss_fetcher import clean_text, normalize_paper_url
+from .topic_rule_engine import evaluate_rule
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _report_title(now: datetime | None = None) -> str:
+def _report_title(now: datetime | None = None, topic_name: str | None = None) -> str:
     current = now or _utc_now()
-    return f"PaperPulse Literature Report - {current.strftime('%Y-%m-%d')}"
+    suffix = f" - {topic_name}" if topic_name else ""
+    return f"PaperPulse Literature Report{suffix} - {current.strftime('%Y-%m-%d')}"
 
 
 def _render_markdown(title: str, items: list[dict], below_threshold_items: list[dict] | None = None) -> str:
@@ -62,6 +64,8 @@ async def collect_recent_report_items(
     threshold: float,
     *,
     paper_ids: list[int] | None = None,
+    workspace_id: int = 1,
+    topic_rule: EmailTopicRule | None = None,
 ) -> list[dict]:
     today = _utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
     query = (
@@ -70,6 +74,9 @@ async def collect_recent_report_items(
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
         .where(AnalysisResult.relevance_score >= threshold)
+        .where(AnalysisResult.workspace_id == workspace_id)
+        .where(Paper.workspace_id == workspace_id)
+        .where(Keyword.workspace_id == workspace_id)
         .order_by(desc(AnalysisResult.relevance_score), desc(AnalysisResult.analyzed_at))
     )
     if paper_ids is None:
@@ -82,7 +89,9 @@ async def collect_recent_report_items(
     result = await db.execute(query)
 
     grouped: dict[int, dict] = {}
+    paper_keyword_scores: dict[int, dict[int, float]] = {}
     for analysis, paper, keyword, journal_name in result.all():
+        paper_keyword_scores.setdefault(paper.id, {})[keyword.id] = float(analysis.relevance_score or 0)
         item = grouped.setdefault(
             paper.id,
             {
@@ -103,7 +112,21 @@ async def collect_recent_report_items(
         if keyword.word not in item["keywords"]:
             item["keywords"].append(keyword.word)
 
-    return sorted(grouped.values(), key=lambda item: item["score"], reverse=True)
+    items = list(grouped.values())
+    if topic_rule:
+        items = [
+            item
+            for item in items
+            if evaluate_rule(
+                topic_rule.rule_type,
+                required_keyword_ids=topic_rule.keyword_ids,
+                exclude_keyword_ids=topic_rule.exclude_keyword_ids,
+                paper_keyword_scores=paper_keyword_scores.get(item["paper_id"], {}),
+                threshold=topic_rule.threshold,
+            )
+        ]
+
+    return sorted(items, key=lambda item: item["score"], reverse=True)
 
 
 async def collect_below_threshold_digest_items(
@@ -111,6 +134,7 @@ async def collect_below_threshold_digest_items(
     threshold: float,
     *,
     paper_ids: list[int] | None = None,
+    workspace_id: int = 1,
 ) -> list[dict]:
     today = _utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
     query = (
@@ -119,6 +143,9 @@ async def collect_below_threshold_digest_items(
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
         .where(AnalysisResult.relevance_score < threshold)
+        .where(AnalysisResult.workspace_id == workspace_id)
+        .where(Paper.workspace_id == workspace_id)
+        .where(Keyword.workspace_id == workspace_id)
         .order_by(desc(AnalysisResult.relevance_score), desc(AnalysisResult.analyzed_at))
     )
     if paper_ids is None:
@@ -164,25 +191,41 @@ async def create_report_from_recent_analyses(
     paper_ids: list[int] | None = None,
     analyzed_count: int | None = None,
     related_count: int | None = None,
+    workspace_id: int = 1,
+    topic_rule: EmailTopicRule | None = None,
 ) -> Report:
-    items = await collect_recent_report_items(db, threshold, paper_ids=paper_ids)
+    effective_threshold = float(topic_rule.threshold if topic_rule else threshold)
+    items = await collect_recent_report_items(
+        db,
+        effective_threshold,
+        paper_ids=paper_ids,
+        workspace_id=workspace_id,
+        topic_rule=topic_rule,
+    )
     below_threshold_items = []
-    if not items:
-        below_threshold_items = await collect_below_threshold_digest_items(db, threshold, paper_ids=paper_ids)
-    title = _report_title()
+    if not items and not topic_rule:
+        below_threshold_items = await collect_below_threshold_digest_items(
+            db,
+            effective_threshold,
+            paper_ids=paper_ids,
+            workspace_id=workspace_id,
+        )
+    title = _report_title(topic_name=topic_rule.name if topic_rule else None)
     markdown = _render_markdown(title, items, below_threshold_items)
     html = await build_email_html(
         items,
-        threshold=threshold,
+        threshold=effective_threshold,
         analyzed_count=analyzed_count,
         related_count=related_count,
         below_threshold_data=below_threshold_items,
     )
     report = Report(
         title=title,
+        workspace_id=workspace_id,
+        topic_rule_id=topic_rule.id if topic_rule else None,
         source=source,
         status="ready",
-        threshold=threshold,
+        threshold=effective_threshold,
         paper_count=len(items),
         max_relevance_score=max((item["score"] for item in items), default=0),
         markdown=markdown,
@@ -194,6 +237,7 @@ async def create_report_from_recent_analyses(
     for item in items:
         db.add(ReportItem(
             report_id=report.id,
+            workspace_id=workspace_id,
             paper_id=item["paper_id"],
             title=item["title"],
             authors=item["authors"],
@@ -221,9 +265,14 @@ async def send_report_email(db: AsyncSession, report_id: int) -> EmailDelivery:
     report = await _load_report(db, report_id)
     config = await get_email_config(db)
     recipient = config.get("recipient") or ""
+    if report.topic_rule_id:
+        rule = await db.get(EmailTopicRule, report.topic_rule_id)
+        if rule and rule.recipients:
+            recipient = rule.recipients
     subject = f"[PaperPulse] {report.title}"
     delivery = EmailDelivery(
         report_id=report.id,
+        workspace_id=report.workspace_id,
         recipient=recipient,
         subject=subject,
         status="pending",
@@ -278,7 +327,57 @@ async def create_and_send_recent_report(
     paper_ids: list[int] | None = None,
     analyzed_count: int | None = None,
     related_count: int | None = None,
+    workspace_id: int = 1,
 ) -> dict:
+    rule_result = await db.execute(
+        select(EmailTopicRule)
+        .where(EmailTopicRule.workspace_id == workspace_id, EmailTopicRule.enabled == True)
+        .order_by(EmailTopicRule.id)
+    )
+    rules = rule_result.scalars().all()
+    if rules:
+        topic_reports = []
+        sent_count = 0
+        total_papers = 0
+        for rule in rules:
+            report = await create_report_from_recent_analyses(
+                db,
+                threshold=rule.threshold,
+                source=source,
+                paper_ids=paper_ids,
+                analyzed_count=analyzed_count,
+                related_count=related_count,
+                workspace_id=workspace_id,
+                topic_rule=rule,
+            )
+            delivery = None
+            if report.paper_count > 0:
+                delivery = await send_report_email(db, report.id)
+                if delivery.status == "sent":
+                    sent_count += 1
+            total_papers += report.paper_count
+            topic_reports.append({
+                "topic_rule_id": rule.id,
+                "report_id": report.id,
+                "paper_count": report.paper_count,
+                "sent": bool(delivery and delivery.status == "sent"),
+                "skipped": report.paper_count == 0 or bool(delivery and delivery.status == "skipped"),
+                "reason": "" if report.paper_count > 0 else "没有匹配该主题规则的论文",
+                "delivery_id": delivery.id if delivery else None,
+            })
+
+        first = topic_reports[0] if topic_reports else {}
+        return {
+            "report_id": first.get("report_id"),
+            "sent": sent_count > 0,
+            "sent_count": sent_count,
+            "skipped": sent_count == 0,
+            "reason": "" if sent_count > 0 else "没有主题邮件发送",
+            "paper_count": total_papers,
+            "delivery_id": first.get("delivery_id"),
+            "topic_reports": topic_reports,
+        }
+
     report = await create_report_from_recent_analyses(
         db,
         threshold=threshold,
@@ -286,6 +385,7 @@ async def create_and_send_recent_report(
         paper_ids=paper_ids,
         analyzed_count=analyzed_count,
         related_count=related_count,
+        workspace_id=workspace_id,
     )
     delivery = await send_report_email(db, report.id)
     return {

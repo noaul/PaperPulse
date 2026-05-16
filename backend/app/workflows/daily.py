@@ -10,22 +10,27 @@ from .nodes.webdav_backup import WebdavBackupNode
 from .nodes.weknora_sync import WeKnoraSyncNode
 
 
-async def run_analysis_workflow(db: AsyncSession) -> WorkflowExecution:
-    return await WorkflowEngine(db).run("manual-analysis", [AiAnalyzeNode()])
+async def run_analysis_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
+    return await WorkflowEngine(db).run("manual-analysis", [AiAnalyzeNode()], workspace_id=workspace_id)
 
 
-async def run_fetch_analyze_workflow(db: AsyncSession) -> WorkflowExecution:
-    return await WorkflowEngine(db).run("manual-fetch-analyze", [FetchRssNode(), AiAnalyzeNode()])
+async def run_fetch_analyze_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
+    return await WorkflowEngine(db).run(
+        "manual-fetch-analyze",
+        [FetchRssNode(), AiAnalyzeNode()],
+        workspace_id=workspace_id,
+    )
 
 
-async def run_send_report_workflow(db: AsyncSession) -> WorkflowExecution:
-    return await WorkflowEngine(db).run("manual-send-report", [EmailReportNode()])
+async def run_send_report_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
+    return await WorkflowEngine(db).run("manual-send-report", [EmailReportNode()], workspace_id=workspace_id)
 
 
-async def run_daily_workflow(db: AsyncSession) -> WorkflowExecution:
+async def run_daily_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
     return await WorkflowEngine(db).run(
         "daily-paperpulse",
         [FetchRssNode(), AiAnalyzeNode(), EmailReportNode(), WeKnoraSyncNode(), WebdavBackupNode()],
+        workspace_id=workspace_id,
     )
 
 
@@ -41,14 +46,19 @@ def analysis_initial_summary() -> dict:
     }
 
 
-async def create_analysis_workflow_execution(db: AsyncSession) -> WorkflowExecution:
-    return await WorkflowEngine(db).create_execution("manual-analysis", analysis_initial_summary())
+async def create_analysis_workflow_execution(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
+    return await WorkflowEngine(db).create_execution(
+        "manual-analysis",
+        analysis_initial_summary(),
+        workspace_id=workspace_id,
+    )
 
 
-async def create_fetch_analyze_workflow_execution(db: AsyncSession) -> WorkflowExecution:
+async def create_fetch_analyze_workflow_execution(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
     return await WorkflowEngine(db).create_execution(
         "manual-fetch-analyze",
         {"new_papers": 0, **analysis_initial_summary()},
+        workspace_id=workspace_id,
     )
 
 

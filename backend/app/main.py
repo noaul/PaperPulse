@@ -107,8 +107,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 
 # Routers
-from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows, reports, reading_queue, zotero
+from .routers import feeds, papers, keywords, settings, analysis, dashboard, auth, executions, workflows, reports, reading_queue, zotero, workspaces, email_topic_rules
 app.include_router(auth.router)
+app.include_router(workspaces.router)
+app.include_router(email_topic_rules.router)
 app.include_router(feeds.router)
 app.include_router(papers.router)
 app.include_router(keywords.router)

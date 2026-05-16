@@ -11,13 +11,21 @@ os.environ["DB_PATH"] = str(Path(TEST_DIR.name) / "paperpulse-ai-test.db")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.ai_analyzer import (
+    analyze_paper,
     build_ai_request,
     extract_response_text,
     request_chat_completion,
 )
+from app.database import Base, SessionLocal, engine
+from app.models import Keyword, Paper
 
 
 class AiAnalyzerTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+
     def test_build_ai_request_supports_full_responses_endpoint(self):
         url, payload = build_ai_request(
             {
@@ -117,6 +125,32 @@ class AiAnalyzerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("https://api.openai.com/v1/responses", captured["url"])
         self.assertEqual(8, captured["json"]["max_output_tokens"])
         self.assertEqual([{"role": "user", "content": "Reply OK"}], captured["json"]["input"])
+
+    async def test_analyze_paper_only_persists_keywords_returned_as_matched(self):
+        async def fake_request_chat_completion(config, messages, max_tokens=500):
+            return '{"relevance_score": 8, "matched_keywords": ["alloy"], "summary": "Only alloy is relevant"}'
+
+        with patch("app.services.ai_analyzer.request_chat_completion", fake_request_chat_completion):
+            async with SessionLocal() as db:
+                paper = Paper(title="Alloy fatigue paper", abstract="This paper studies alloys.")
+                alloy = Keyword(word="alloy", enabled=True)
+                fatigue = Keyword(word="fatigue", enabled=True)
+                db.add_all([paper, alloy, fatigue])
+                await db.commit()
+                await db.refresh(paper)
+                await db.refresh(alloy)
+                await db.refresh(fatigue)
+
+                results = await analyze_paper(
+                    db,
+                    paper,
+                    [alloy, fatigue],
+                    {"enabled": True, "api_key": "test-key", "api_base": "http://ai.test"},
+                    raise_errors=True,
+                )
+
+                self.assertEqual(1, len(results))
+                self.assertEqual(alloy.id, results[0].keyword_id)
 
 
 if __name__ == "__main__":

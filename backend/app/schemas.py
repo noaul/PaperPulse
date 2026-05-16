@@ -3,6 +3,43 @@ from datetime import datetime
 from typing import Any, Literal, Optional
 
 
+# Workspace
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    slug: Optional[str] = Field(default=None, max_length=80)
+    description: Optional[str] = None
+    color: str = "#4F46E5"
+    icon: str = "folder"
+
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    slug: Optional[str] = Field(default=None, max_length=80)
+    description: Optional[str] = None
+    color: Optional[str] = None
+    icon: Optional[str] = None
+    sort_order: Optional[int] = None
+    enabled: Optional[bool] = None
+    is_default: Optional[bool] = None
+
+
+class WorkspaceOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    color: str
+    icon: str
+    sort_order: int
+    is_default: bool
+    enabled: bool
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
 # Feed
 class FeedCreate(BaseModel):
     name: str
@@ -116,6 +153,44 @@ class KeywordOut(BaseModel):
     created_at: Optional[datetime]
     class Config:
         from_attributes = True
+
+
+# Email topic rules
+EmailRuleType = Literal["OR", "AND", "NOT"]
+
+
+class EmailTopicRuleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    rule_type: EmailRuleType = "OR"
+    keyword_ids: list[int] = Field(default_factory=list)
+    exclude_keyword_ids: list[int] = Field(default_factory=list)
+    threshold: float = Field(default=6.0, ge=0, le=10)
+    enabled: bool = True
+    recipients: Optional[str] = None
+
+
+class EmailTopicRuleUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    rule_type: Optional[EmailRuleType] = None
+    keyword_ids: Optional[list[int]] = None
+    exclude_keyword_ids: Optional[list[int]] = None
+    threshold: Optional[float] = Field(default=None, ge=0, le=10)
+    enabled: Optional[bool] = None
+    recipients: Optional[str] = None
+
+
+class EmailTopicRuleOut(BaseModel):
+    id: int
+    workspace_id: int
+    name: str
+    rule_type: str
+    keyword_ids: list[int] = Field(default_factory=list)
+    exclude_keyword_ids: list[int] = Field(default_factory=list)
+    threshold: float
+    enabled: bool
+    recipients: Optional[str] = None
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
 
 # Analysis
@@ -268,6 +343,8 @@ class EmailDeliveryOut(BaseModel):
 
 class ReportOut(BaseModel):
     id: int
+    workspace_id: int
+    topic_rule_id: Optional[int] = None
     title: str
     source: Optional[str]
     status: str
@@ -288,3 +365,4 @@ class ReportDetail(ReportOut):
 class ReportCreate(BaseModel):
     threshold: float = 6.0
     source: str = "manual"
+    topic_rule_id: Optional[int] = None

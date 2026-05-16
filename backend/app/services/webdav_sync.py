@@ -39,19 +39,23 @@ def _parse_dt(value: str | None) -> datetime | None:
         return None
 
 
-async def export_data(db: AsyncSession) -> bool:
+async def export_data(db: AsyncSession, workspace_id: int = 1) -> bool:
     config = await get_webdav_config(db)
     if not config.get("url"):
         logger.info("WebDAV not configured")
         return False
 
-    feeds_result = await db.execute(select(Feed))
+    feeds_result = await db.execute(select(Feed).where(Feed.workspace_id == workspace_id))
     feeds = [{"name": f.name, "url": f.url, "journal_name": f.journal_name, "enabled": f.enabled} for f in feeds_result.scalars().all()]
 
-    kw_result = await db.execute(select(Keyword))
+    kw_result = await db.execute(select(Keyword).where(Keyword.workspace_id == workspace_id))
     keywords = [{"word": k.word, "category": k.category, "enabled": k.enabled} for k in kw_result.scalars().all()]
 
-    papers_result = await db.execute(select(Paper, Feed.url).outerjoin(Feed, Paper.feed_id == Feed.id))
+    papers_result = await db.execute(
+        select(Paper, Feed.url)
+        .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .where(Paper.workspace_id == workspace_id)
+    )
     papers = [
         {
             "title": paper.title,
@@ -71,6 +75,7 @@ async def export_data(db: AsyncSession) -> bool:
         select(AnalysisResult, Paper.doi, Paper.url, Paper.title, Keyword.word)
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
+        .where(AnalysisResult.workspace_id == workspace_id)
     )
     analysis_results = [
         {

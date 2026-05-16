@@ -16,8 +16,43 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  const workspaceId = localStorage.getItem('paperpulse:workspace-id')
+  if (workspaceId) {
+    config.headers['X-Workspace-Id'] = workspaceId
+  }
   return config
 })
+
+// ==================== Workspaces ====================
+export interface Workspace {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  color: string
+  icon: string
+  sort_order: number
+  is_default: boolean
+  enabled: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface WorkspaceCreate {
+  name: string
+  slug?: string
+  description?: string
+  color?: string
+  icon?: string
+}
+
+export const workspaceApi = {
+  list: () => api.get<Workspace[]>('/workspaces'),
+  create: (data: WorkspaceCreate) => api.post<Workspace>('/workspaces', data),
+  update: (id: number, data: Partial<WorkspaceCreate> & { enabled?: boolean; is_default?: boolean }) =>
+    api.put<Workspace>(`/workspaces/${id}`, data),
+  delete: (id: number) => api.delete(`/workspaces/${id}`),
+}
 
 // Response interceptor for error handling
 api.interceptors.response.use(
@@ -314,6 +349,8 @@ export interface EmailDelivery {
 
 export interface Report {
   id: number
+  workspace_id: number
+  topic_rule_id: number | null
   title: string
   source: string | null
   status: string
@@ -334,6 +371,7 @@ export interface ReportDetail extends Report {
 export interface ReportCreate {
   threshold: number
   source?: string
+  topic_rule_id?: number | null
 }
 
 export const reportApi = {
@@ -344,6 +382,41 @@ export const reportApi = {
   syncWeKnora: (id: number) => api.post(`/reports/${id}/sync-weknora`),
   markdown: (id: number) => api.get<Blob>(`/reports/${id}/markdown`, { responseType: 'blob' }),
   deliveries: (id: number) => api.get<EmailDelivery[]>(`/reports/${id}/deliveries`),
+}
+
+// ==================== Email Topic Rules ====================
+export type EmailRuleType = 'OR' | 'AND' | 'NOT'
+
+export interface EmailTopicRule {
+  id: number
+  workspace_id: number
+  name: string
+  rule_type: EmailRuleType
+  keyword_ids: number[]
+  exclude_keyword_ids: number[]
+  threshold: number
+  enabled: boolean
+  recipients: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface EmailTopicRulePayload {
+  name: string
+  rule_type: EmailRuleType
+  keyword_ids: number[]
+  exclude_keyword_ids: number[]
+  threshold: number
+  enabled: boolean
+  recipients?: string | null
+}
+
+export const emailTopicRuleApi = {
+  list: () => api.get<EmailTopicRule[]>('/email-topic-rules'),
+  create: (data: EmailTopicRulePayload) => api.post<EmailTopicRule>('/email-topic-rules', data),
+  update: (id: number, data: Partial<EmailTopicRulePayload>) =>
+    api.put<EmailTopicRule>(`/email-topic-rules/${id}`, data),
+  delete: (id: number) => api.delete(`/email-topic-rules/${id}`),
 }
 
 // ==================== Dashboard ====================

@@ -20,6 +20,7 @@ class AiAnalyzeNode(WorkflowNode):
             progress_callback=on_progress,
             control_callback=context.wait_if_paused_or_cancelled,
             paper_ids=paper_ids,
+            workspace_id=context.workspace_id,
             raise_errors=True,
         )
         analyzed = int(context.summary.get("analysis_analyzed", 0))

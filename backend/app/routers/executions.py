@@ -3,7 +3,8 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import WorkflowExecution, WorkflowExecutionLog
+from ..dependencies import get_current_workspace
+from ..models import WorkflowExecution, WorkflowExecutionLog, Workspace
 from ..schemas import WorkflowExecutionDetail, WorkflowExecutionLogOut, WorkflowExecutionOut
 from ..workflows.context import to_json
 
@@ -42,9 +43,10 @@ async def set_execution_control(
     db: AsyncSession,
     execution_id: int,
     action: str,
+    workspace_id: int | None = None,
 ) -> WorkflowExecution:
     execution = await db.get(WorkflowExecution, execution_id)
-    if not execution:
+    if not execution or (workspace_id is not None and execution.workspace_id != workspace_id):
         raise HTTPException(404, "Execution not found")
 
     if execution.status in TERMINAL_STATUSES and not (action == "cancel" and execution.status == "cancelled"):
@@ -84,8 +86,14 @@ async def list_executions(
     limit: int = Query(20, ge=1, le=100),
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
 ):
-    query = select(WorkflowExecution).order_by(desc(WorkflowExecution.started_at)).limit(limit)
+    query = (
+        select(WorkflowExecution)
+        .where(WorkflowExecution.workspace_id == workspace.id)
+        .order_by(desc(WorkflowExecution.started_at))
+        .limit(limit)
+    )
     if status:
         query = query.where(WorkflowExecution.status == status)
     result = await db.execute(query)
@@ -93,9 +101,13 @@ async def list_executions(
 
 
 @router.get("/{execution_id}", response_model=WorkflowExecutionDetail)
-async def get_execution(execution_id: int, db: AsyncSession = Depends(get_db)):
+async def get_execution(
+    execution_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
     execution = await db.get(WorkflowExecution, execution_id)
-    if not execution:
+    if not execution or execution.workspace_id != workspace.id:
         raise HTTPException(404, "Execution not found")
 
     logs_result = await db.execute(
@@ -108,9 +120,13 @@ async def get_execution(execution_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{execution_id}/logs", response_model=list[WorkflowExecutionLogOut])
-async def list_execution_logs(execution_id: int, db: AsyncSession = Depends(get_db)):
+async def list_execution_logs(
+    execution_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
     execution = await db.get(WorkflowExecution, execution_id)
-    if not execution:
+    if not execution or execution.workspace_id != workspace.id:
         raise HTTPException(404, "Execution not found")
 
     result = await db.execute(
@@ -122,15 +138,30 @@ async def list_execution_logs(execution_id: int, db: AsyncSession = Depends(get_
 
 
 @router.post("/{execution_id}/pause", response_model=WorkflowExecutionOut)
-async def pause_execution(execution_id: int, db: AsyncSession = Depends(get_db)):
-    return execution_out(await set_execution_control(db, execution_id, "pause"))
+async def pause_execution(
+    execution_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await set_execution_control(db, execution_id, "pause", workspace_id=workspace.id)
+    return execution_out(execution)
 
 
 @router.post("/{execution_id}/resume", response_model=WorkflowExecutionOut)
-async def resume_execution(execution_id: int, db: AsyncSession = Depends(get_db)):
-    return execution_out(await set_execution_control(db, execution_id, "resume"))
+async def resume_execution(
+    execution_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await set_execution_control(db, execution_id, "resume", workspace_id=workspace.id)
+    return execution_out(execution)
 
 
 @router.post("/{execution_id}/cancel", response_model=WorkflowExecutionOut)
-async def cancel_execution(execution_id: int, db: AsyncSession = Depends(get_db)):
-    return execution_out(await set_execution_control(db, execution_id, "cancel"))
+async def cancel_execution(
+    execution_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    execution = await set_execution_control(db, execution_id, "cancel", workspace_id=workspace.id)
+    return execution_out(execution)
