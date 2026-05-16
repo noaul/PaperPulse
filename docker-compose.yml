@@ -10,4 +10,16 @@ services:
       - TZ=Asia/Shanghai
       - DB_PATH=/app/data/paperpulse.db
       - STATIC_DIR=/app/static
+      - JWT_SECRET=${JWT_SECRET:-paperpulse-change-me-in-production}
+      - UVICORN_WORKERS=1
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
