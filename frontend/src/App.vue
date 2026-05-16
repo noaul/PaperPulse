@@ -1,11 +1,11 @@
 <template>
   <router-view v-if="!appStore.isLoggedIn" />
 
-  <div v-else class="paper-shell flex h-screen flex-col overflow-hidden">
-    <header class="paper-topbar flex h-16 flex-shrink-0 items-center gap-4 px-6">
-      <div class="flex min-w-0 items-center gap-4">
-        <router-link to="/dashboard" class="flex items-center gap-3">
-          <div class="paper-logo-mark flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg">
+  <div v-else class="paper-shell flex h-screen overflow-hidden">
+    <aside :class="['paper-sidebar flex flex-col', appStore.sidebarCollapsed ? 'w-[84px]' : 'w-[264px]']">
+      <div class="flex h-16 items-center gap-3 px-4">
+        <router-link to="/dashboard" class="flex min-w-0 flex-1 items-center gap-3">
+          <div class="paper-logo-mark flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg">
             <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 stroke-linecap="round"
@@ -15,65 +15,96 @@
               />
             </svg>
           </div>
-          <div class="hidden sm:block">
-            <div class="text-base font-semibold text-gray-900">PaperPulse</div>
-            <div class="text-xs text-gray-500">学术文献工作台</div>
+          <div v-if="!appStore.sidebarCollapsed" class="min-w-0">
+            <div class="truncate text-base font-bold text-gray-900">PaperPulse</div>
+            <div class="truncate text-xs text-gray-500">智能论文追踪</div>
           </div>
         </router-link>
-
-        <div v-if="workspaceStore.currentWorkspace" class="hidden items-center gap-2 md:flex">
-          <span
-            class="h-2.5 w-2.5 rounded-full"
-            :style="{ backgroundColor: workspaceStore.currentWorkspace.color || '#4F46E5' }"
-          ></span>
-          <select
-            :value="workspaceStore.currentWorkspace.id"
-            class="max-w-[180px] rounded-lg border px-3 py-1.5 text-sm"
-            @change="switchWorkspace"
-          >
-            <option v-for="workspace in workspaceStore.workspaces" :key="workspace.id" :value="workspace.id">
-              {{ workspace.name }}
-            </option>
-          </select>
-          <button
-            class="rounded-lg border px-2.5 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-            title="新建工作区"
-            @click="createWorkspace"
-          >
-            +
-          </button>
-        </div>
       </div>
 
-      <nav class="paper-top-nav flex min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto">
+      <div v-if="workspaceStore.currentWorkspace" class="px-3 pb-3">
+        <div v-if="!appStore.sidebarCollapsed" class="paper-workspace rounded-lg p-2.5">
+          <div class="mb-2 flex items-center gap-2 text-xs font-medium text-gray-500">
+            <span
+              class="h-2 w-2 rounded-full"
+              :style="{ backgroundColor: workspaceStore.currentWorkspace.color || '#5265ff' }"
+            ></span>
+            当前工作区
+          </div>
+          <div class="flex gap-2">
+            <select
+              :value="workspaceStore.currentWorkspace.id"
+              class="min-w-0 flex-1 rounded-lg border px-2.5 py-2 text-sm font-semibold"
+              @change="switchWorkspace"
+            >
+              <option v-for="workspace in workspaceStore.workspaces" :key="workspace.id" :value="workspace.id">
+                {{ workspace.name }}
+              </option>
+            </select>
+            <button
+              class="rounded-lg border px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              title="新建工作区"
+              @click="createWorkspace"
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <button
+          v-else
+          class="paper-workspace-mini mx-auto flex h-10 w-10 items-center justify-center rounded-lg"
+          title="新建工作区"
+          @click="createWorkspace"
+        >
+          +
+        </button>
+      </div>
+
+      <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         <router-link
           v-for="item in navItems"
           :key="item.path"
           :to="item.path"
-          :class="['paper-top-nav-link', isActive(item.path) ? 'paper-top-nav-link-active' : '']"
+          :class="['paper-side-nav-link', isActive(item.path) ? 'paper-side-nav-link-active' : '']"
+          :title="item.label"
         >
-          {{ item.label }}
+          <span class="paper-side-nav-mark">{{ item.mark }}</span>
+          <span v-if="!appStore.sidebarCollapsed" class="truncate">{{ item.label }}</span>
         </router-link>
       </nav>
 
-      <div class="flex flex-shrink-0 items-center gap-2">
-        <div class="hidden text-right md:block">
-          <div class="text-xs text-gray-500">{{ currentTitle }}</div>
-          <div class="text-xs text-gray-400">{{ appStore.authUsername }}</div>
+      <div class="space-y-2 border-t border-gray-100 p-3">
+        <div v-if="!appStore.sidebarCollapsed" class="rounded-lg bg-white/70 px-3 py-2">
+          <div class="truncate text-xs text-gray-500">当前账号</div>
+          <div class="truncate text-sm font-semibold text-gray-800">{{ appStore.authUsername }}</div>
         </div>
         <button
-          class="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-          title="退出登录"
-          @click="handleLogout"
+          class="paper-side-action"
+          title="收起侧边栏"
+          @click="appStore.toggleSidebar"
         >
-          退出
+          <span class="paper-side-nav-mark">{{ appStore.sidebarCollapsed ? '>' : '<' }}</span>
+          <span v-if="!appStore.sidebarCollapsed">收起侧边栏</span>
+        </button>
+        <button class="paper-side-action" title="退出登录" @click="handleLogout">
+          <span class="paper-side-nav-mark">X</span>
+          <span v-if="!appStore.sidebarCollapsed">退出登录</span>
         </button>
       </div>
-    </header>
+    </aside>
 
-    <div class="paper-content flex-1 overflow-y-auto p-5 lg:p-6">
-      <router-view :key="pageKey" />
-    </div>
+    <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <header class="paper-mainbar flex h-16 flex-shrink-0 items-center justify-between px-6">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">{{ currentTitle }}</h1>
+          <p class="mt-0.5 text-xs text-gray-500">工作区内数据独立筛选、分析与推送</p>
+        </div>
+      </header>
+
+      <div class="paper-content flex-1 overflow-y-auto p-5 lg:p-6">
+        <router-view :key="pageKey" />
+      </div>
+    </main>
 
     <div class="fixed right-4 top-4 z-50 space-y-2">
       <div
@@ -111,14 +142,14 @@ const currentTitle = computed(() => (route.meta.title as string) || 'PaperPulse'
 const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorkspaceId || 'default'}`)
 
 const navItems = [
-  { path: '/dashboard', label: '仪表盘' },
-  { path: '/papers', label: '论文' },
-  { path: '/analysis', label: '分析结果' },
-  { path: '/reports', label: '报告' },
-  { path: '/feeds', label: '订阅源' },
-  { path: '/email-topics', label: '邮件主题' },
-  { path: '/reading-queue', label: '阅读队列' },
-  { path: '/settings', label: '设置' },
+  { path: '/dashboard', label: '仪表盘', mark: 'D' },
+  { path: '/papers', label: '论文', mark: 'P' },
+  { path: '/analysis', label: '分析结果', mark: 'A' },
+  { path: '/reports', label: '报告', mark: 'R' },
+  { path: '/feeds', label: '订阅源', mark: 'F' },
+  { path: '/email-topics', label: '邮件主题', mark: 'M' },
+  { path: '/reading-queue', label: '阅读队列', mark: 'Q' },
+  { path: '/settings', label: '设置', mark: 'S' },
 ]
 
 function isActive(path: string): boolean {

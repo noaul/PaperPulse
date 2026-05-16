@@ -89,6 +89,89 @@ textarea:focus {
     linear-gradient(180deg, #fbfdff 0%, var(--paper-bg) 52%, #eef8ff 100%);
 }
 
+.paper-sidebar {
+  position: relative;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.92);
+  border-right: 1px solid var(--paper-line);
+  box-shadow: 12px 0 36px rgba(42, 62, 130, 0.08);
+  backdrop-filter: blur(18px);
+  transition: width 180ms ease;
+}
+
+.paper-sidebar::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: linear-gradient(180deg, #5265ff, #00a6fb, #14b8a6, #f59e0b);
+  background-size: 100% 220%;
+  animation: paper-flow-y 8s linear infinite;
+}
+
+.paper-workspace {
+  background: var(--paper-bg-soft);
+  border: 1px solid rgba(82, 101, 255, 0.12);
+}
+
+.paper-workspace-mini {
+  background: var(--paper-bg-soft);
+  border: 1px solid rgba(82, 101, 255, 0.12);
+  color: var(--paper-primary);
+  font-weight: 800;
+}
+
+.paper-side-nav-link,
+.paper-side-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.8rem;
+  border-radius: 8px;
+  padding: 0 0.85rem;
+  color: var(--paper-muted);
+  font-size: 0.94rem;
+  font-weight: 650;
+  text-align: left;
+}
+
+.paper-side-action {
+  border: 0;
+  background: transparent;
+}
+
+.paper-side-nav-link:hover,
+.paper-side-action:hover,
+.paper-side-nav-link-active {
+  background: linear-gradient(135deg, rgba(82, 101, 255, 0.13), rgba(0, 166, 251, 0.1));
+  color: #2733a0;
+}
+
+.paper-side-nav-link-active {
+  box-shadow: inset 3px 0 0 var(--paper-primary);
+}
+
+.paper-side-nav-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 7px;
+  background: rgba(82, 101, 255, 0.08);
+  color: var(--paper-primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.paper-side-nav-link-active .paper-side-nav-mark {
+  background: linear-gradient(135deg, var(--paper-primary), var(--paper-info));
+  color: #fff;
+}
+
+.paper-mainbar,
 .paper-topbar {
   position: relative;
   background: rgba(255, 255, 255, 0.9);
@@ -96,6 +179,7 @@ textarea:focus {
   backdrop-filter: blur(18px);
 }
 
+.paper-mainbar::before,
 .paper-topbar::before {
   position: absolute;
   inset: 0 0 auto 0;
@@ -104,6 +188,15 @@ textarea:focus {
   background: linear-gradient(90deg, #5265ff, #00a6fb, #14b8a6, #f59e0b);
   background-size: 220% 100%;
   animation: paper-flow 8s linear infinite;
+}
+
+@keyframes paper-flow-y {
+  from {
+    background-position: 50% 0%;
+  }
+  to {
+    background-position: 50% 220%;
+  }
 }
 
 .paper-content {

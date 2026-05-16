@@ -1,34 +1,151 @@
 <template>
-  <div class="topic-page space-y-6">
-    <section class="topic-hero rounded-xl border border-gray-200 bg-white p-6">
-      <div class="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <h1 class="text-2xl font-semibold text-gray-900">邮件主题管理</h1>
-          <p class="mt-1 text-sm text-gray-500">像 Google Scholar 订阅一样，为每个研究主题设置检索条件和邮件提醒。</p>
+  <div class="topic-page space-y-5">
+    <section class="topic-composer rounded-xl border border-gray-200 bg-white p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-semibold text-gray-900">{{ editingId ? '编辑邮件主题' : '创建邮件主题' }}</h1>
+            <p class="mt-1 text-sm text-gray-500">
+              像 Google Scholar 订阅一样，为研究方向设置检索条件、排除词和邮件提醒。
+            </p>
+          </div>
+          <button v-if="editingId" class="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" @click="resetForm">
+            取消编辑
+          </button>
         </div>
-        <button
-          class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-          @click="resetForm"
-        >
-          新建主题
-        </button>
-      </div>
+
+        <form class="mt-4 grid gap-4 xl:grid-cols-[minmax(220px,0.65fr)_minmax(340px,1fr)_minmax(300px,0.9fr)]" @submit.prevent="saveTopic">
+          <div class="space-y-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">主题名称</label>
+            <input
+              v-model="form.name"
+              required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+              placeholder="例如：疲劳与蠕变"
+            />
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">论文满足条件</label>
+            <div class="grid gap-2">
+              <button
+                v-for="option in ruleOptions"
+                :key="option.value"
+                type="button"
+                :class="[
+                  'rounded-lg border px-3 py-3 text-left text-sm',
+                  form.rule_type === option.value ? 'border-blue-300 bg-blue-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50',
+                ]"
+                @click="form.rule_type = option.value"
+              >
+                <span class="block font-semibold">{{ option.label }}</span>
+                <span class="mt-1 block text-xs opacity-80">{{ option.description }}</span>
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <div class="space-y-4">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-gray-700">最低评分</label>
+              <input
+                v-model.number="form.threshold"
+                type="number"
+                min="0"
+                max="10"
+                step="0.5"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+              />
+            </div>
+            <label class="topic-switch rounded-lg border border-gray-200 p-3">
+              <span>
+                <span class="block text-sm font-medium text-gray-700">邮件发送</span>
+                <span class="block text-xs text-gray-500">{{ form.enabled ? '启用' : '暂停' }}</span>
+              </span>
+              <input v-model="form.enabled" type="checkbox" class="sr-only" />
+              <span :class="['switch-track', form.enabled ? 'switch-track-on' : '']">
+                <span :class="['switch-thumb', form.enabled ? 'switch-thumb-on' : '']"></span>
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">包含关键词</label>
+            <KeywordPicker v-model="form.keyword_ids" :groups="groupedKeywords" tone="include" />
+          </div>
+          </div>
+
+          <div class="space-y-4">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">排除关键词</label>
+            <KeywordPicker v-model="form.exclude_keyword_ids" :groups="groupedKeywords" tone="exclude" :disabled="form.rule_type !== 'NOT'" />
+          </div>
+
+          <div class="rounded-xl bg-gray-50 p-3">
+            <label class="mb-2 block text-sm font-medium text-gray-700">快速新增关键词</label>
+            <div class="grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
+              <input
+                v-model="newKeyword.word"
+                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
+                placeholder="关键词"
+              />
+              <input
+                v-model="newKeyword.category"
+                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
+                placeholder="分类"
+              />
+              <button
+                type="button"
+                class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                :disabled="addingKeyword || !newKeyword.word.trim()"
+                @click="addKeyword"
+              >
+                添加
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <div class="xl:col-span-3 grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto] md:items-end">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-700">自定义收件人</label>
+            <input
+              v-model="form.recipients"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
+              placeholder="留空使用全局邮件配置"
+            />
+          </div>
+
+          <button
+            type="submit"
+            :disabled="saving"
+            class="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {{ editingId ? '保存主题' : '创建主题' }}
+          </button>
+          </div>
+        </form>
     </section>
 
-    <section class="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
-      <div class="space-y-4">
-        <div v-if="loading" class="rounded-xl border border-gray-200 bg-white p-10 text-center">
-          <div class="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-blue-100 border-b-blue-600"></div>
-        </div>
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900">已创建主题</h2>
+        <span class="text-sm text-gray-500">{{ topics.length }} 个主题</span>
+      </div>
 
-        <div v-else-if="topics.length === 0" class="rounded-xl border border-gray-200 bg-white p-10 text-center">
-          <p class="text-base font-medium text-gray-700">还没有邮件主题</p>
-          <p class="mt-2 text-sm text-gray-500">先在右侧创建一个主题，例如“疲劳与蠕变”或“显微组织排除模拟”。</p>
-        </div>
+      <div v-if="loading" class="rounded-xl border border-gray-200 bg-white p-10 text-center">
+        <div class="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-blue-100 border-b-blue-600"></div>
+      </div>
 
+      <div v-else-if="topics.length === 0" class="rounded-xl border border-gray-200 bg-white p-10 text-center">
+        <p class="text-base font-medium text-gray-700">还没有邮件主题</p>
+        <p class="mt-2 text-sm text-gray-500">先在上方创建一个主题，例如“疲劳与蠕变”或“显微组织排除模拟”。</p>
+      </div>
+
+      <div v-else class="grid gap-4 xl:grid-cols-2">
         <article
           v-for="topic in topics"
-          v-else
           :key="topic.id"
           class="topic-card rounded-xl border border-gray-200 bg-white p-5"
         >
@@ -92,124 +209,6 @@
           </div>
         </article>
       </div>
-
-      <aside class="topic-composer rounded-xl border border-gray-200 bg-white p-5">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-lg font-semibold text-gray-900">{{ editingId ? '编辑主题' : '创建主题' }}</h2>
-            <p class="mt-1 text-sm text-gray-500">{{ editingId ? '调整当前主题的订阅条件' : '为一个研究方向设置独立邮件提醒' }}</p>
-          </div>
-          <button v-if="editingId" class="rounded-lg border px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50" @click="resetForm">
-            取消编辑
-          </button>
-        </div>
-
-        <form class="mt-5 space-y-5" @submit.prevent="saveTopic">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">主题名称</label>
-            <input
-              v-model="form.name"
-              required
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              placeholder="例如：疲劳与蠕变"
-            />
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">论文满足条件</label>
-            <div class="grid gap-2">
-              <button
-                v-for="option in ruleOptions"
-                :key="option.value"
-                type="button"
-                :class="[
-                  'rounded-lg border px-3 py-3 text-left text-sm',
-                  form.rule_type === option.value ? 'border-blue-300 bg-blue-600 text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50',
-                ]"
-                @click="form.rule_type = option.value"
-              >
-                <span class="block font-semibold">{{ option.label }}</span>
-                <span class="mt-1 block text-xs opacity-80">{{ option.description }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label class="mb-1 block text-sm font-medium text-gray-700">最低评分</label>
-              <input
-                v-model.number="form.threshold"
-                type="number"
-                min="0"
-                max="10"
-                step="0.5"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              />
-            </div>
-            <label class="topic-switch rounded-lg border border-gray-200 p-3">
-              <span>
-                <span class="block text-sm font-medium text-gray-700">邮件发送</span>
-                <span class="block text-xs text-gray-500">{{ form.enabled ? '启用' : '暂停' }}</span>
-              </span>
-              <input v-model="form.enabled" type="checkbox" class="sr-only" />
-              <span :class="['switch-track', form.enabled ? 'switch-track-on' : '']">
-                <span :class="['switch-thumb', form.enabled ? 'switch-thumb-on' : '']"></span>
-              </span>
-            </label>
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">包含关键词</label>
-            <KeywordPicker v-model="form.keyword_ids" :groups="groupedKeywords" tone="include" />
-          </div>
-
-          <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">排除关键词</label>
-            <KeywordPicker v-model="form.exclude_keyword_ids" :groups="groupedKeywords" tone="exclude" :disabled="form.rule_type !== 'NOT'" />
-          </div>
-
-          <div class="rounded-xl bg-gray-50 p-3">
-            <label class="mb-2 block text-sm font-medium text-gray-700">快速新增关键词</label>
-            <div class="grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
-              <input
-                v-model="newKeyword.word"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
-                placeholder="关键词"
-              />
-              <input
-                v-model="newKeyword.category"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none"
-                placeholder="分类"
-              />
-              <button
-                type="button"
-                class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                :disabled="addingKeyword || !newKeyword.word.trim()"
-                @click="addKeyword"
-              >
-                添加
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">自定义收件人</label>
-            <input
-              v-model="form.recipients"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
-              placeholder="留空使用全局邮件配置"
-            />
-          </div>
-
-          <button
-            type="submit"
-            :disabled="saving"
-            class="w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {{ editingId ? '保存主题' : '创建主题' }}
-          </button>
-        </form>
-      </aside>
     </section>
   </div>
 </template>
