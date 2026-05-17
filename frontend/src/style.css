@@ -381,3 +381,123 @@ input:focus, select:focus, textarea:focus {
 .keyword-picker {
   transition: background-color 160ms ease, border-color 160ms ease;
 }
+
+/* ─── Force dark overrides for all Tailwind light utilities ─── */
+
+/* Backgrounds */
+.bg-white { background-color: var(--xai-canvas-card) !important; }
+.bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-slate-100 { background-color: var(--xai-canvas-soft) !important; }
+.bg-gray-200, .bg-slate-200 { background-color: var(--xai-canvas-mid) !important; }
+.bg-blue-50, .bg-indigo-50, .bg-purple-50 { background-color: rgba(124,58,237,0.1) !important; }
+.bg-green-50, .bg-emerald-50, .bg-teal-50 { background-color: rgba(34,197,94,0.1) !important; }
+.bg-red-50, .bg-rose-50 { background-color: rgba(239,68,68,0.1) !important; }
+.bg-yellow-50, .bg-amber-50, .bg-orange-50 { background-color: rgba(245,158,11,0.1) !important; }
+.bg-blue-100 { background-color: rgba(160,195,236,0.15) !important; }
+.bg-green-100 { background-color: rgba(34,197,94,0.15) !important; }
+.bg-red-100 { background-color: rgba(239,68,68,0.15) !important; }
+.bg-yellow-100 { background-color: rgba(245,158,11,0.15) !important; }
+.bg-purple-100, .bg-indigo-100 { background-color: rgba(124,58,237,0.15) !important; }
+.bg-gray-800 { background-color: var(--xai-canvas-soft) !important; }
+
+/* Text colors */
+.text-gray-900, .text-gray-800, .text-slate-900, .text-slate-800 { color: var(--xai-ink) !important; }
+.text-gray-700, .text-slate-700 { color: var(--xai-body) !important; }
+.text-gray-600, .text-gray-500, .text-slate-600, .text-slate-500 { color: var(--xai-mute) !important; }
+.text-gray-400, .text-slate-400 { color: var(--xai-mute) !important; }
+.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900 { color: var(--xai-accent-breeze) !important; }
+.text-green-600, .text-green-700, .text-green-800, .text-green-900 { color: #86efac !important; }
+.text-red-600, .text-red-700, .text-red-800, .text-red-900 { color: #fca5a5 !important; }
+.text-yellow-600, .text-yellow-700, .text-yellow-800, .text-yellow-900 { color: #fcd34d !important; }
+.text-purple-600, .text-purple-700, .text-purple-800, .text-purple-900 { color: #c4b5fd !important; }
+.text-orange-600, .text-orange-700 { color: var(--xai-accent-sunset) !important; }
+.text-indigo-600, .text-indigo-700 { color: #a5b4fc !important; }
+
+/* Borders */
+.border-gray-100, .border-gray-200, .border-gray-300, .border-slate-100, .border-slate-200, .border-slate-300 {
+  border-color: var(--xai-hairline) !important;
+}
+.border-blue-300, .border-blue-200 { border-color: rgba(160,195,236,0.3) !important; }
+
+/* Shadows → none in dark mode */
+.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+
+/* Hover states */
+.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-slate-50:hover {
+  background-color: var(--xai-canvas-soft) !important;
+}
+.hover\:bg-blue-700:hover, .hover\:bg-indigo-700:hover, .hover\:bg-purple-700:hover,
+.hover\:bg-green-700:hover, .hover\:bg-red-700:hover, .hover\:bg-orange-700:hover,
+.hover\:bg-slate-900:hover {
+  opacity: 0.85;
+}
+.hover\:text-blue-800:hover { color: var(--xai-accent-breeze) !important; }
+
+/* Buttons with solid color backgrounds → convert to outline pill style */
+.bg-blue-600, .bg-indigo-600, .bg-purple-600 {
+  background-color: transparent !important;
+  border: 1px solid rgba(255,255,255,0.25) !important;
+  color: var(--xai-ink) !important;
+  border-radius: 9999px !important;
+}
+.bg-green-600 {
+  background-color: transparent !important;
+  border: 1px solid rgba(34,197,94,0.4) !important;
+  color: #86efac !important;
+  border-radius: 9999px !important;
+}
+.bg-red-600 {
+  background-color: transparent !important;
+  border: 1px solid rgba(239,68,68,0.4) !important;
+  color: #fca5a5 !important;
+  border-radius: 9999px !important;
+}
+.bg-orange-600 {
+  background-color: transparent !important;
+  border: 1px solid rgba(255,122,23,0.4) !important;
+  color: var(--xai-accent-sunset) !important;
+  border-radius: 9999px !important;
+}
+.bg-slate-800 {
+  background-color: var(--xai-ink) !important;
+  color: var(--xai-on-primary) !important;
+  border-radius: 9999px !important;
+}
+
+/* Focus rings */
+.ring-blue-500, .ring-indigo-500 { --tw-ring-color: rgba(255,255,255,0.25) !important; }
+.focus\:ring-blue-500:focus, .focus\:ring-indigo-500:focus { --tw-ring-color: rgba(255,255,255,0.25) !important; }
+
+/* Dividers */
+.divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--xai-hairline) !important;
+}
+
+/* Login page special */
+.bg-gradient-to-br { background: var(--xai-canvas) !important; }
+.paper-login-scene { background: var(--xai-canvas); }
+.paper-login-panel {
+  background: var(--xai-canvas-card);
+  border: 1px solid var(--xai-hairline);
+}
+
+/* Select / input overrides inside Tailwind contexts */
+select, input, textarea {
+  background-color: var(--xai-canvas-soft) !important;
+  color: var(--xai-ink) !important;
+  border-color: var(--xai-hairline) !important;
+}
+
+select option {
+  background-color: var(--xai-canvas-card);
+  color: var(--xai-ink);
+}
+
+/* Table overrides */
+table { border-color: var(--xai-hairline); }
+th { background-color: var(--xai-canvas-soft) !important; color: var(--xai-mute) !important; }
+td { border-color: var(--xai-hairline) !important; color: var(--xai-body) !important; }
+tr:hover td { background-color: var(--xai-canvas-soft) !important; }
+
+/* Rounded-lg buttons with colored bg → add pill shape */
+button.rounded-lg, a.rounded-lg { border-radius: 9999px; }
