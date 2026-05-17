@@ -3,35 +3,41 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
       <div class="flex flex-wrap items-center gap-4">
         <div>
+          <label class="block text-xs text-gray-500 mb-1">主题词</label>
+          <select
+            v-model="filters.topic_rule"
+            @change="loadAnalyses(1)"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[140px]"
+          >
+            <option value="">全部主题</option>
+            <option v-for="rule in topicRules" :key="rule.id" :value="rule.name">{{ rule.name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">关键词</label>
+          <select
+            v-model.number="filters.keyword_id"
+            @change="loadAnalyses(1)"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm min-w-[140px]"
+          >
+            <option :value="0">全部关键词</option>
+            <option v-for="kw in keywordsList" :key="kw.id" :value="kw.id">{{ kw.word }}</option>
+          </select>
+        </div>
+        <div>
           <label class="block text-xs text-gray-500 mb-1">研究质量评分</label>
           <select
             v-model.number="filters.min_score"
             @change="loadAnalyses(1)"
-            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           >
-            <option :value="0">全部评分</option>
-            <option :value="3">≥ 3 一般</option>
+            <option :value="0">全部（含不相关）</option>
+            <option :value="0.1">仅相关</option>
             <option :value="5">≥ 5 良好</option>
             <option :value="7">≥ 7 优秀</option>
             <option :value="9">≥ 9 顶尖</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">按主题词/关键词筛选</label>
-          <input
-            v-model.trim="filters.keyword"
-            @keyup.enter="loadAnalyses(1)"
-            placeholder="输入关键词..."
-            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm w-48"
-          />
-        </div>
-        <button
-          @click="loadAnalyses(1)"
-          :disabled="loading"
-          class="mt-5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          筛选
-        </button>
         <button
           @click="clearFilters"
           class="mt-5 px-4 py-2 text-gray-600 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50"
@@ -39,7 +45,7 @@
           重置
         </button>
         <div class="mt-5 text-sm text-gray-500">
-          共 {{ totalAnalyses }} 条分析结果
+          共 {{ totalAnalyses }} 条结果
         </div>
       </div>
     </div>
@@ -138,12 +144,14 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { analysisApi } from '@/api'
-import type { Analysis } from '@/api'
+import { analysisApi, keywordApi, emailTopicRuleApi } from '@/api'
+import type { Analysis, Keyword, EmailTopicRule } from '@/api'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
 const analyses = ref<Analysis[]>([])
+const keywordsList = ref<Keyword[]>([])
+const topicRules = ref<EmailTopicRule[]>([])
 const loading = ref(true)
 const currentPage = ref(1)
 const totalPages = ref(1)
@@ -153,13 +161,15 @@ const pageSize = 20
 
 const filters = reactive({
   min_score: 0,
-  keyword: '',
+  keyword_id: 0,
+  topic_rule: '',
 })
 
 function scoreBadgeClass(score: number): string {
   if (score >= 7) return 'bg-green-100 text-green-800'
   if (score >= 5) return 'bg-yellow-100 text-yellow-800'
-  return 'bg-red-100 text-red-800'
+  if (score > 0) return 'bg-orange-100 text-orange-800'
+  return 'bg-gray-100 text-gray-600'
 }
 
 function formatDateTime(value: string): string {
@@ -168,7 +178,8 @@ function formatDateTime(value: string): string {
 
 function clearFilters() {
   filters.min_score = 0
-  filters.keyword = ''
+  filters.keyword_id = 0
+  filters.topic_rule = ''
   loadAnalyses(1)
 }
 
@@ -176,12 +187,10 @@ async function loadAnalyses(page: number) {
   if (page < 1) return
   loading.value = true
   try {
-    const params: { page: number; page_size: number; min_score?: number; keyword?: string } = {
-      page,
-      page_size: pageSize,
-    }
+    const params: Record<string, any> = { page, page_size: pageSize }
     if (filters.min_score) params.min_score = filters.min_score
-    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.keyword_id) params.keyword_id = filters.keyword_id
+    if (filters.topic_rule) params.keyword = filters.topic_rule
     const { data } = await analysisApi.list(params)
     analyses.value = data.items
     currentPage.value = data.page
@@ -192,6 +201,14 @@ async function loadAnalyses(page: number) {
   } finally {
     loading.value = false
   }
+}
+
+async function loadFilters() {
+  try {
+    const [kwRes, ruleRes] = await Promise.all([keywordApi.list(), emailTopicRuleApi.list()])
+    keywordsList.value = kwRes.data
+    topicRules.value = ruleRes.data
+  } catch {}
 }
 
 async function addToReadingQueue(item: Analysis) {
@@ -211,6 +228,7 @@ async function addToReadingQueue(item: Analysis) {
 }
 
 onMounted(() => {
+  loadFilters()
   loadAnalyses(1)
 })
 </script>

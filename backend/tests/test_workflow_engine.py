@@ -293,7 +293,7 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
 
                 await EmailReportNode().run(context)
 
-                self.assertEqual(0.0, captured["threshold"])
+                self.assertEqual(0.1, captured["threshold"])
                 self.assertEqual([10, 11, 12], captured["paper_ids"])
                 self.assertEqual(3, captured["analyzed_count"])
                 self.assertEqual(1, captured["related_count"])

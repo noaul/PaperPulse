@@ -222,6 +222,7 @@ Respond ONLY with the JSON object, no markdown."""
     results = []
     matched_normalized = {m.lower() for m in parsed.matched}
 
+    # Tag paper with every matched keyword (one AnalysisResult per keyword)
     for kw in keywords:
         if kw.word.strip().lower() in matched_normalized:
             ar = AnalysisResult(
@@ -233,6 +234,18 @@ Respond ONLY with the JSON object, no markdown."""
             )
             db.add(ar)
             results.append(ar)
+
+    # Unmatched paper still gets one record (score=0) so it appears in results
+    if not results and keywords:
+        ar = AnalysisResult(
+            paper_id=paper.id,
+            keyword_id=keywords[0].id,
+            workspace_id=paper.workspace_id,
+            relevance_score=0.0,
+            summary=parsed.summary or "与研究方向无关",
+        )
+        db.add(ar)
+        results.append(ar)
 
     if results:
         await db.commit()
