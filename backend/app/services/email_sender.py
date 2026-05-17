@@ -92,15 +92,25 @@ async def build_email_html(
                 </div>"""
 
     for item in papers_data:
-        score = item.get("score", 0)
+        score = float(item.get("score", 0) or 0)
         score_class = "" if score >= 7 else "mid" if score >= 5 else "low"
+        url = escape(str(item.get("url") or "#"), quote=True)
+        title = escape(str(item.get("title") or ""))
+        authors = escape(str(item.get("authors") or ""))
+        journal = escape(str(item.get("journal") or ""))
+        summary = escape(str(item.get("summary") or ""))
+        abstract = escape(str(item.get("abstract") or ""))
+        keywords = " ".join(
+            f'<span class="keyword-tag">{escape(str(k))}</span>'
+            for k in item.get("keywords", [])
+        )
         html += f"""
         <div class="paper">
-            <div class="title"><a href="{item.get('url', '#')}">{item['title']}</a></div>
-            <div class="meta">{item.get('authors', '')} | {item.get('journal', '')} | <span class="score {score_class}">Score: {score:.1f}</span></div>
-            <div>{' '.join(f'<span class="keyword-tag">{k}</span>' for k in item.get('keywords', []))}</div>
-            <div class="summary">{item.get('summary', '')}</div>
-            <div class="abstract"><strong>Abstract:</strong> {item.get('abstract', '')}</div>
+            <div class="title"><a href="{url}">{title}</a></div>
+            <div class="meta">{authors} | {journal} | <span class="score {score_class}">Score: {score:.1f}</span></div>
+            <div>{keywords}</div>
+            <div class="summary">{summary}</div>
+            <div class="abstract"><strong>Abstract:</strong> {abstract}</div>
         </div>"""
 
     html += "</body></html>"

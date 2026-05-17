@@ -24,10 +24,7 @@ class EmailReportNode(WorkflowNode):
         super().__init__("email-report")
 
     async def run(self, context: WorkflowContext) -> None:
-        # Send only papers that matched keywords (score > 0)
-        # Unmatched papers get score from AI quality rating but are stored with
-        # the "unrelated" marker; use minimal threshold to exclude truly unrelated
-        threshold = 0.1
+        threshold = await get_relevance_threshold(context)
         paper_ids = context.state.get("fetched_paper_ids")
         result = await send_daily_report(
             context.db,

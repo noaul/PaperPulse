@@ -209,3 +209,26 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("未达到报告阈值", html)
         self.assertIn("7.0", html)
         self.assertIn("44", html)
+
+    async def test_build_email_html_escapes_dynamic_paper_fields(self):
+        html = await build_email_html([{
+            "title": "<script>alert(1)</script>",
+            "authors": "A <b>Author</b>",
+            "journal": "J & Co",
+            "url": "https://example.test/paper?x=<bad>&y=\"quote\"",
+            "score": 8.0,
+            "keywords": ["<kw>", "alloy&fatigue"],
+            "summary": "<img src=x onerror=alert(1)>",
+            "abstract": "Abstract with <em>markup</em>",
+        }])
+
+        self.assertNotIn("<script>", html)
+        self.assertNotIn("<b>Author</b>", html)
+        self.assertNotIn("<img", html)
+        self.assertNotIn("<em>markup</em>", html)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
+        self.assertIn("A &lt;b&gt;Author&lt;/b&gt;", html)
+        self.assertIn("J &amp; Co", html)
+        self.assertIn("https://example.test/paper?x=&lt;bad&gt;&amp;y=&quot;quote&quot;", html)
+        self.assertIn("&lt;kw&gt;", html)
+        self.assertIn("alloy&amp;fatigue", html)
