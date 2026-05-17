@@ -18,29 +18,32 @@ from app.services.report_center import create_and_send_recent_report, create_rep
 
 
 class EmailTopicRuleEngineTest(unittest.TestCase):
-    def test_or_rule_matches_any_qualified_required_keyword(self):
+    def test_or_rule_matches_any_positive_required_keyword(self):
         self.assertTrue(evaluate_rule(
             "OR",
             required_keyword_ids=[1, 2],
             exclude_keyword_ids=[],
-            paper_keyword_scores={2: 7.5},
-            threshold=6.0,
+            paper_keyword_scores={2: 1.5},
+        ))
+        self.assertFalse(evaluate_rule(
+            "OR",
+            required_keyword_ids=[1, 2],
+            exclude_keyword_ids=[],
+            paper_keyword_scores={2: 0.0},
         ))
 
-    def test_and_rule_requires_all_keywords_above_threshold(self):
+    def test_and_rule_requires_all_keywords_with_positive_scores(self):
         self.assertFalse(evaluate_rule(
             "AND",
             required_keyword_ids=[1, 2],
             exclude_keyword_ids=[],
             paper_keyword_scores={1: 8.0},
-            threshold=6.0,
         ))
         self.assertTrue(evaluate_rule(
             "AND",
             required_keyword_ids=[1, 2],
             exclude_keyword_ids=[],
-            paper_keyword_scores={1: 8.0, 2: 6.5},
-            threshold=6.0,
+            paper_keyword_scores={1: 1.0, 2: 0.5},
         ))
 
     def test_not_rule_matches_required_and_rejects_excluded_keywords(self):
@@ -49,14 +52,18 @@ class EmailTopicRuleEngineTest(unittest.TestCase):
             required_keyword_ids=[1],
             exclude_keyword_ids=[2],
             paper_keyword_scores={1: 8.0},
-            threshold=6.0,
         ))
         self.assertFalse(evaluate_rule(
             "NOT",
             required_keyword_ids=[1],
             exclude_keyword_ids=[2],
-            paper_keyword_scores={1: 8.0, 2: 7.0},
-            threshold=6.0,
+            paper_keyword_scores={1: 8.0, 2: 0.5},
+        ))
+        self.assertTrue(evaluate_rule(
+            "NOT",
+            required_keyword_ids=[1],
+            exclude_keyword_ids=[2],
+            paper_keyword_scores={1: 0.5, 2: 0.0},
         ))
 
 
@@ -128,7 +135,7 @@ class EmailTopicReportTest(unittest.IsolatedAsyncioTestCase):
     async def test_topic_report_filters_and_rule(self):
         ids = await self._seed()
         async with SessionLocal() as db:
-            rule = EmailTopicRule(name="Alloy AND fatigue", rule_type="AND", threshold=6, workspace_id=1)
+            rule = EmailTopicRule(name="Alloy AND fatigue", rule_type="AND", workspace_id=1)
             rule.set_keyword_ids([ids["alloy"], ids["fatigue"]])
             db.add(rule)
             await db.commit()
@@ -143,7 +150,7 @@ class EmailTopicReportTest(unittest.IsolatedAsyncioTestCase):
     async def test_topic_report_filters_not_rule(self):
         ids = await self._seed()
         async with SessionLocal() as db:
-            rule = EmailTopicRule(name="Alloy NOT corrosion", rule_type="NOT", threshold=6, workspace_id=1)
+            rule = EmailTopicRule(name="Alloy NOT corrosion", rule_type="NOT", workspace_id=1)
             rule.set_keyword_ids([ids["alloy"]])
             rule.set_exclude_keyword_ids([ids["corrosion"]])
             db.add(rule)
@@ -159,9 +166,9 @@ class EmailTopicReportTest(unittest.IsolatedAsyncioTestCase):
     async def test_create_and_send_recent_report_sends_one_delivery_per_enabled_topic_with_matches(self):
         ids = await self._seed()
         async with SessionLocal() as db:
-            and_rule = EmailTopicRule(name="AND topic", rule_type="AND", threshold=6, workspace_id=1)
+            and_rule = EmailTopicRule(name="AND topic", rule_type="AND", workspace_id=1)
             and_rule.set_keyword_ids([ids["alloy"], ids["fatigue"]])
-            missing_rule = EmailTopicRule(name="Missing topic", rule_type="AND", threshold=6, workspace_id=1)
+            missing_rule = EmailTopicRule(name="Missing topic", rule_type="AND", workspace_id=1)
             missing_rule.set_keyword_ids([ids["fatigue"], ids["corrosion"]])
             db.add_all([and_rule, missing_rule])
             await db.commit()
@@ -184,7 +191,7 @@ class EmailTopicReportTest(unittest.IsolatedAsyncioTestCase):
                 return delivery
 
             with patch("app.services.report_center.send_report_email", fake_send_report_email):
-                result = await create_and_send_recent_report(db, threshold=6, source="unit-test", workspace_id=1)
+                result = await create_and_send_recent_report(db, source="unit-test", workspace_id=1)
 
             self.assertEqual(1, result["sent_count"])
             self.assertEqual(1, result["paper_count"])

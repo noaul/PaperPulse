@@ -396,19 +396,6 @@
                 placeholder="0"
               />
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">相关性阈值</label>
-              <input
-                v-model.number="scheduleForm.relevance_threshold"
-                type="number"
-                min="0"
-                max="10"
-                step="0.5"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                placeholder="5.0"
-              />
-              <p class="text-xs text-gray-500 mt-1">低于此分数的论文将不被包含在报告中</p>
-            </div>
           </div>
 
           <div class="flex items-center space-x-3 pt-4">
@@ -495,7 +482,6 @@ const testingWeKnora = ref(false)
 const scheduleForm = reactive({
   cron_hour: 8,
   cron_minute: 0,
-  relevance_threshold: 5.0,
 })
 const savingSchedule = ref(false)
 

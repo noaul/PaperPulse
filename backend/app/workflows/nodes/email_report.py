@@ -1,22 +1,6 @@
-import json
-
-from sqlalchemy import select
-
 from .base import WorkflowNode
 from ..context import WorkflowContext
-from ...models import Setting
 from ...services.email_sender import send_daily_report
-
-
-async def get_relevance_threshold(context: WorkflowContext) -> float:
-    result = await context.db.execute(select(Setting).where(Setting.key == "schedule_config"))
-    row = result.scalar_one_or_none()
-    if not row:
-        return 6.0
-    try:
-        return float(json.loads(row.value).get("relevance_threshold", 6.0))
-    except Exception:
-        return 6.0
 
 
 class EmailReportNode(WorkflowNode):
@@ -24,11 +8,9 @@ class EmailReportNode(WorkflowNode):
         super().__init__("email-report")
 
     async def run(self, context: WorkflowContext) -> None:
-        threshold = await get_relevance_threshold(context)
         paper_ids = context.state.get("fetched_paper_ids")
         result = await send_daily_report(
             context.db,
-            threshold=threshold,
             paper_ids=paper_ids,
             analyzed_count=int(context.summary.get("analysis_analyzed", 0)),
             related_count=int(context.summary.get("analysis_related", 0)),
@@ -46,6 +28,5 @@ class EmailReportNode(WorkflowNode):
         )
         level = "info" if sent or result.get("skipped") else "warning"
         await context.log(level, "Email report completed" if sent else "Email report skipped or failed", {
-            "threshold": threshold,
             **result,
         })

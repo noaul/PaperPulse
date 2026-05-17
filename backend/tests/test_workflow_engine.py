@@ -286,14 +286,12 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
 
         async def fake_send_daily_report(
             db,
-            threshold=6.0,
             *,
             paper_ids=None,
             analyzed_count=None,
             related_count=None,
             workspace_id=1,
         ):
-            captured["threshold"] = threshold
             captured["paper_ids"] = paper_ids
             captured["analyzed_count"] = analyzed_count
             captured["related_count"] = related_count
@@ -312,7 +310,7 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
             async with SessionLocal() as db:
                 db.add(Setting(
                     key="schedule_config",
-                    value=json.dumps({"cron_hour": 6, "cron_minute": 0, "relevance_threshold": 6.5}),
+                    value=json.dumps({"cron_hour": 6, "cron_minute": 0}),
                 ))
                 execution = WorkflowExecution(workflow_name="unit-email-node", status="running")
                 db.add(execution)
@@ -325,7 +323,6 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
 
                 await EmailReportNode().run(context)
 
-                self.assertEqual(6.5, captured["threshold"])
                 self.assertEqual([10, 11, 12], captured["paper_ids"])
                 self.assertEqual(3, captured["analyzed_count"])
                 self.assertEqual(1, captured["related_count"])

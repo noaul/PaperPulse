@@ -21,9 +21,7 @@ def report_out(report: Report) -> ReportOut:
         title=report.title,
         source=report.source,
         status=report.status,
-        threshold=report.threshold,
         paper_count=report.paper_count,
-        max_relevance_score=report.max_relevance_score,
         created_at=report.created_at,
         sent_at=report.sent_at,
     )
@@ -99,7 +97,6 @@ async def create_report(
             raise HTTPException(404, "Email topic rule not found")
     report = await create_report_from_recent_analyses(
         db,
-        threshold=payload.threshold,
         source=payload.source,
         workspace_id=workspace.id,
         topic_rule=topic_rule,
@@ -136,6 +133,18 @@ async def send_report(
     except ValueError:
         raise HTTPException(404, "Report not found")
     return delivery_out(delivery)
+
+
+@router.delete("/{report_id}")
+async def delete_report(
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    report = await get_report_or_404(db, report_id, workspace.id)
+    await db.delete(report)
+    await db.commit()
+    return {"success": True}
 
 
 @router.post("/{report_id}/sync-weknora")

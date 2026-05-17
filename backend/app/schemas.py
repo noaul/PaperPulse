@@ -164,7 +164,6 @@ class EmailTopicRuleCreate(BaseModel):
     rule_type: EmailRuleType = "OR"
     keyword_ids: list[int] = Field(default_factory=list)
     exclude_keyword_ids: list[int] = Field(default_factory=list)
-    threshold: float = Field(default=6.0, ge=0, le=10)
     enabled: bool = True
     recipients: Optional[str] = None
 
@@ -174,7 +173,6 @@ class EmailTopicRuleUpdate(BaseModel):
     rule_type: Optional[EmailRuleType] = None
     keyword_ids: Optional[list[int]] = None
     exclude_keyword_ids: Optional[list[int]] = None
-    threshold: Optional[float] = Field(default=None, ge=0, le=10)
     enabled: Optional[bool] = None
     recipients: Optional[str] = None
 
@@ -186,7 +184,6 @@ class EmailTopicRuleOut(BaseModel):
     rule_type: str
     keyword_ids: list[int] = Field(default_factory=list)
     exclude_keyword_ids: list[int] = Field(default_factory=list)
-    threshold: float
     enabled: bool
     recipients: Optional[str] = None
     created_at: Optional[datetime]
@@ -267,7 +264,6 @@ class WeKnoraConfig(BaseModel):
 class ScheduleConfig(BaseModel):
     cron_hour: int = Field(default=6, ge=0, le=23)
     cron_minute: int = Field(default=0, ge=0, le=59)
-    relevance_threshold: float = Field(default=6.0, ge=0, le=10)
 
 
 # Dashboard
@@ -348,9 +344,7 @@ class ReportOut(BaseModel):
     title: str
     source: Optional[str]
     status: str
-    threshold: float
     paper_count: int
-    max_relevance_score: float
     created_at: Optional[datetime]
     sent_at: Optional[datetime]
 
@@ -363,6 +357,5 @@ class ReportDetail(ReportOut):
 
 
 class ReportCreate(BaseModel):
-    threshold: float = 6.0
     source: str = "manual"
     topic_rule_id: Optional[int] = None

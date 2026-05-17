@@ -12,10 +12,12 @@ TEST_DIR = tempfile.TemporaryDirectory()
 os.environ["DB_PATH"] = str(Path(TEST_DIR.name) / "paperpulse-reports-test.db")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.database import Base, engine, SessionLocal
 from app.models import AnalysisResult, EmailDelivery, EmailTopicRule, Keyword, Paper, Report, ReportItem, Setting
+from app.main import app
 from app.services.email_sender import build_email_html
 from app.services.report_center import create_and_send_recent_report, create_report_from_recent_analyses, send_report_email
 
@@ -60,16 +62,15 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             ])
             await db.commit()
 
-    async def test_create_report_from_recent_analyses_persists_report_and_deduplicated_items(self):
+    async def test_create_report_from_recent_analyses_includes_positive_scores(self):
         await self.seed_analysis_data()
 
         async with SessionLocal() as db:
-            report = await create_report_from_recent_analyses(db, threshold=6.0, source="unit-test")
+            report = await create_report_from_recent_analyses(db, source="unit-test")
 
             self.assertIsNotNone(report.id)
             self.assertEqual("ready", report.status)
             self.assertEqual(1, report.paper_count)
-            self.assertEqual(8.5, report.max_relevance_score)
             self.assertIn("High entropy alloy fatigue", report.markdown)
             self.assertIn("alloy", report.markdown)
             self.assertIn("fatigue", report.markdown)
@@ -86,7 +87,7 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
         await self.seed_analysis_data()
 
         async with SessionLocal() as db:
-            report = await create_report_from_recent_analyses(db, threshold=6.0, source="unit-test")
+            report = await create_report_from_recent_analyses(db, source="unit-test")
             delivery = await send_report_email(db, report.id)
 
             self.assertEqual("skipped", delivery.status)
@@ -111,7 +112,7 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             ))
             await db.commit()
 
-            report = await create_report_from_recent_analyses(db, threshold=6.0, source="unit-test")
+            report = await create_report_from_recent_analyses(db, source="unit-test")
 
             with patch("app.services.report_center.open_smtp_connection") as open_smtp:
                 delivery = await send_report_email(db, report.id)
@@ -155,7 +156,6 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
 
             report = await create_report_from_recent_analyses(
                 db,
-                threshold=6.0,
                 source="unit-test",
                 paper_ids=[current_paper.id],
             )
@@ -164,14 +164,14 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Current matching paper", report.markdown)
             self.assertNotIn("Old matching paper", report.markdown)
 
-    async def test_empty_threshold_report_includes_recent_ai_digest(self):
+    async def test_report_includes_low_quality_positive_score_items(self):
         async with SessionLocal() as db:
             keyword = Keyword(word="nickel alloy", enabled=True)
             paper = Paper(
-                title="Below threshold but analyzed paper",
+                title="Low quality but relevant paper",
                 authors="A. Analyst",
                 abstract="Moderately relevant abstract",
-                url="https://example.test/below-threshold",
+                url="https://example.test/low-quality",
             )
             db.add_all([keyword, paper])
             await db.commit()
@@ -182,28 +182,26 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
                 paper_id=paper.id,
                 keyword_id=keyword.id,
                 relevance_score=6.0,
-                summary="AI found moderate relevance below the report threshold",
+                summary="AI found a relevant but lower quality paper",
                 analyzed_at=datetime.now(timezone.utc),
             ))
             await db.commit()
 
             report = await create_report_from_recent_analyses(
                 db,
-                threshold=7.0,
                 source="unit-test",
                 paper_ids=[paper.id],
                 analyzed_count=1,
                 related_count=1,
             )
 
-            self.assertEqual(0, report.paper_count)
-            self.assertIn("Below-threshold AI analyses", report.markdown)
-            self.assertIn("Below threshold but analyzed paper", report.markdown)
-            self.assertIn("AI found moderate relevance", report.markdown)
-            self.assertIn("未达到阈值的 AI 分析", report.html)
-            self.assertIn("Below threshold but analyzed paper", report.html)
+            self.assertEqual(1, report.paper_count)
+            self.assertIn("Low quality but relevant paper", report.markdown)
+            self.assertIn("AI found a relevant", report.markdown)
+            self.assertNotIn("Below-threshold", report.markdown)
+            self.assertNotIn("阈值", report.html)
 
-    async def test_report_excludes_zero_score_items_even_when_threshold_is_zero(self):
+    async def test_report_excludes_zero_score_items(self):
         async with SessionLocal() as db:
             keyword = Keyword(word="alloy", enabled=True)
             paper = Paper(title="Zero score paper", url="https://example.test/zero")
@@ -222,7 +220,6 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
 
             report = await create_report_from_recent_analyses(
                 db,
-                threshold=0.0,
                 source="unit-test",
                 paper_ids=[paper.id],
             )
@@ -264,7 +261,6 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             with patch("app.services.report_center.open_smtp_connection") as open_smtp:
                 result = await create_and_send_recent_report(
                     db,
-                    threshold=0.0,
                     source="unit-test",
                     paper_ids=[paper.id],
                 )
@@ -285,7 +281,7 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             await db.refresh(keyword)
             await db.refresh(paper)
 
-            rule = EmailTopicRule(name="Alloy topic", rule_type="OR", threshold=0.0, workspace_id=1)
+            rule = EmailTopicRule(name="Alloy topic", rule_type="OR", workspace_id=1)
             rule.set_keyword_ids([keyword.id])
             db.add(rule)
             db.add(AnalysisResult(
@@ -308,11 +304,12 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(0, report.paper_count)
             self.assertNotIn("Zero score topic paper", report.markdown)
 
-    async def test_empty_email_html_explains_when_no_papers_match_threshold(self):
-        html = await build_email_html([], threshold=7.0, analyzed_count=44, related_count=3)
+    async def test_empty_email_html_explains_when_no_positive_papers_match(self):
+        html = await build_email_html([], analyzed_count=44, related_count=3)
 
-        self.assertIn("未达到报告阈值", html)
-        self.assertIn("7.0", html)
+        self.assertIn("没有可发送的论文", html)
+        self.assertNotIn("阈值", html)
+        self.assertNotIn("7.0", html)
         self.assertIn("44", html)
 
     async def test_build_email_html_escapes_dynamic_paper_fields(self):
@@ -337,3 +334,40 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://example.test/paper?x=&lt;bad&gt;&amp;y=&quot;quote&quot;", html)
         self.assertIn("&lt;kw&gt;", html)
         self.assertIn("alloy&amp;fatigue", html)
+
+
+class ReportApiTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        self.transport = ASGITransport(app=app)
+        self.client = AsyncClient(transport=self.transport, base_url="http://testserver")
+
+    async def asyncTearDown(self):
+        await self.client.aclose()
+
+    async def test_delete_report_removes_report_items_and_deliveries(self):
+        async with SessionLocal() as db:
+            report = Report(title="Delete me", source="unit-test", status="ready", paper_count=1, workspace_id=1)
+            db.add(report)
+            await db.flush()
+            item = ReportItem(report_id=report.id, workspace_id=1, title="Paper", relevance_score=4.0)
+            delivery = EmailDelivery(report_id=report.id, workspace_id=1, recipient="reader@example.test", subject="Report")
+            db.add_all([item, delivery])
+            await db.commit()
+            await db.refresh(report)
+            report_id = report.id
+            item_id = item.id
+            delivery_id = delivery.id
+
+        response = await self.client.delete(f"/api/reports/{report_id}")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({"success": True}, response.json())
+        get_response = await self.client.get(f"/api/reports/{report_id}")
+        self.assertEqual(404, get_response.status_code)
+        async with SessionLocal() as db:
+            self.assertIsNone(await db.get(Report, report_id))
+            self.assertIsNone(await db.get(ReportItem, item_id))
+            self.assertIsNone(await db.get(EmailDelivery, delivery_id))

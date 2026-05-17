@@ -34,7 +34,7 @@
       </div>
 
       <form id="topic-form" class="mt-5 space-y-5" @submit.prevent="saveTopic">
-        <div class="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_140px_180px_minmax(260px,1fr)] xl:items-end">
+        <div class="grid gap-4 xl:grid-cols-[minmax(220px,1fr)_180px_minmax(260px,1fr)] xl:items-end">
           <label class="block">
             <span class="mb-1 block text-sm font-medium text-gray-700">主题名称</span>
             <input
@@ -42,18 +42,6 @@
               required
               class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
               placeholder="例如：疲劳与蠕变"
-            />
-          </label>
-
-          <label class="block">
-            <span class="mb-1 block text-sm font-medium text-gray-700">最低评分</span>
-            <input
-              v-model.number="form.threshold"
-              type="number"
-              min="0"
-              max="10"
-              step="0.5"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none"
             />
           </label>
 
@@ -231,7 +219,7 @@
                   {{ ruleTypeLabel(topic.rule_type) }}
                 </span>
               </div>
-              <p class="mt-2 text-sm text-gray-500">{{ ruleTypeDescription(topic) }} · 最低评分 {{ topic.threshold.toFixed(1) }}</p>
+              <p class="mt-2 text-sm text-gray-500">{{ ruleTypeDescription(topic) }}</p>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -322,7 +310,6 @@ const ruleOperatorOptions: Array<{ value: RuleOperator; label: string }> = [
 
 const form = reactive({
   name: '',
-  threshold: 6,
   enabled: true,
   recipients: '',
 })
@@ -434,7 +421,6 @@ function removeRuleRow(id: number) {
 function resetForm() {
   editingId.value = null
   form.name = ''
-  form.threshold = 6
   form.enabled = true
   form.recipients = ''
   ruleRows.value = [createRuleRow()]
@@ -459,7 +445,6 @@ async function loadData() {
 function editTopic(topic: EmailTopicRule) {
   editingId.value = topic.id
   form.name = topic.name
-  form.threshold = topic.threshold
   form.enabled = topic.enabled
   form.recipients = topic.recipients || ''
   const includeOperator: RuleOperator = topic.rule_type === 'AND' ? 'AND' : 'OR'
@@ -554,7 +539,6 @@ async function saveTopic() {
       rule_type: ruleType,
       keyword_ids: keywordIds,
       exclude_keyword_ids: ruleType === 'NOT' ? excludeKeywordIds : [],
-      threshold: Number(form.threshold),
       enabled: form.enabled,
       recipients: form.recipients.trim() || null,
     }

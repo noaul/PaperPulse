@@ -5,21 +5,9 @@
       <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-800">生成报告</h2>
-          <p class="text-sm text-gray-500 mt-1">保存今日高相关分析结果，可预览、下载 Markdown 或重新发送邮件。</p>
+          <p class="text-sm text-gray-500 mt-1">保存今日正分分析结果，可预览、下载 Markdown 或重新发送邮件。</p>
         </div>
         <div class="flex flex-wrap items-end gap-3">
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">最低相关性</label>
-            <select
-              v-model.number="threshold"
-              class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-            >
-              <option :value="5">>= 5 中相关</option>
-              <option :value="6">>= 6 推荐</option>
-              <option :value="7">>= 7 高相关</option>
-              <option :value="8">>= 8 精选</option>
-            </select>
-          </div>
           <button
             @click="createReport"
             :disabled="actionLoading"
@@ -76,8 +64,7 @@
           </div>
           <div class="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
             <span class="rounded bg-white/80 px-2 py-1">论文 {{ report.paper_count }}</span>
-            <span class="rounded bg-white/80 px-2 py-1">阈值 {{ report.threshold.toFixed(1) }}</span>
-            <span class="rounded bg-white/80 px-2 py-1">最高 {{ report.max_relevance_score.toFixed(1) }}</span>
+            <span class="rounded bg-white/80 px-2 py-1">0 分已排除</span>
           </div>
         </button>
       </div>
@@ -104,7 +91,7 @@
             </div>
             <h2 class="text-xl font-semibold text-gray-900">{{ selectedReport.title }}</h2>
             <p class="text-sm text-gray-500 mt-1">
-              {{ selectedReport.paper_count }} 篇论文 · 阈值 {{ selectedReport.threshold.toFixed(1) }} · 最高分 {{ selectedReport.max_relevance_score.toFixed(1) }}
+              {{ selectedReport.paper_count }} 篇正分论文 · 0 分不相关论文已排除
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -121,6 +108,13 @@
               class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               下载 Markdown
+            </button>
+            <button
+              @click="deleteSelectedReport"
+              :disabled="actionLoading"
+              class="px-4 py-2 border border-red-300 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              删除报告
             </button>
           </div>
         </div>
@@ -157,7 +151,7 @@
           >{{ selectedReport.markdown }}</pre>
 
           <div v-else-if="selectedReport.items.length === 0" class="rounded-lg bg-gray-50 p-8 text-center text-sm text-gray-500">
-            本报告没有达到阈值的论文。
+            本报告没有正分论文。
           </div>
 
           <div v-else class="grid grid-cols-1 2xl:grid-cols-2 gap-4">
@@ -243,7 +237,6 @@ const selectedReport = ref<ReportDetail | null>(null)
 const reportsLoading = ref(true)
 const detailLoading = ref(false)
 const actionLoading = ref(false)
-const threshold = ref(6)
 const showMarkdown = ref(false)
 
 function formatDateTime(value: string | null): string {
@@ -322,7 +315,7 @@ async function loadReportDetail(id: number) {
 async function createReport() {
   actionLoading.value = true
   try {
-    const { data } = await reportApi.create({ threshold: threshold.value, source: 'manual' })
+    const { data } = await reportApi.create({ source: 'manual' })
     appStore.success(`报告已生成：${data.paper_count} 篇论文`)
     await loadReports()
     await loadReportDetail(data.id)
@@ -349,6 +342,22 @@ async function sendSelectedReport() {
     await loadReports()
   } catch (err: any) {
     appStore.error('发送报告失败: ' + err.message)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function deleteSelectedReport() {
+  if (!selectedReport.value) return
+  if (!confirm(`确定删除报告「${selectedReport.value.title}」？该操作不可恢复。`)) return
+  actionLoading.value = true
+  try {
+    await reportApi.delete(selectedReport.value.id)
+    appStore.success('报告已删除')
+    selectedReport.value = null
+    await loadReports(true)
+  } catch (err: any) {
+    appStore.error('删除报告失败: ' + err.message)
   } finally {
     actionLoading.value = false
   }

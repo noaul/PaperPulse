@@ -206,10 +206,10 @@ const navItems = [
   { path: '/dashboard', label: '仪表盘', mark: 'D', featured: true },
   { path: '/papers', label: '论文', mark: 'P', featured: true },
   { path: '/analysis', label: '分析结果', mark: 'A', featured: true },
-  { path: '/reports', label: '报告', mark: 'R' },
-  { path: '/feeds', label: '订阅源', mark: 'F' },
-  { path: '/email-topics', label: '邮件主题', mark: 'M' },
-  { path: '/reading-queue', label: '阅读队列', mark: 'Q' },
+  { path: '/reports', label: '报告', mark: 'R', featured: true },
+  { path: '/feeds', label: '订阅源', mark: 'F', featured: true },
+  { path: '/email-topics', label: '邮件主题', mark: 'M', featured: true },
+  { path: '/reading-queue', label: '阅读队列', mark: 'Q', featured: true },
 ]
 
 function isActive(path: string): boolean {

@@ -4,12 +4,11 @@ def evaluate_rule(
     required_keyword_ids: list[int],
     exclude_keyword_ids: list[int],
     paper_keyword_scores: dict[int, float],
-    threshold: float,
 ) -> bool:
     qualified = {
         int(keyword_id)
         for keyword_id, score in (paper_keyword_scores or {}).items()
-        if float(score or 0) >= float(threshold or 0)
+        if float(score or 0) > 0
     }
     required = {int(keyword_id) for keyword_id in required_keyword_ids or []}
     excluded = {int(keyword_id) for keyword_id in exclude_keyword_ids or []}

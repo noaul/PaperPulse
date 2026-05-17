@@ -18,7 +18,6 @@ def rule_out(rule: EmailTopicRule) -> EmailTopicRuleOut:
         rule_type=rule.rule_type,
         keyword_ids=rule.keyword_ids,
         exclude_keyword_ids=rule.exclude_keyword_ids,
-        threshold=rule.threshold,
         enabled=rule.enabled,
         recipients=rule.recipients,
         created_at=rule.created_at,
@@ -68,7 +67,6 @@ async def create_rule(
         workspace_id=workspace.id,
         name=payload.name.strip(),
         rule_type=payload.rule_type,
-        threshold=payload.threshold,
         enabled=payload.enabled,
         recipients=payload.recipients,
     )
@@ -98,7 +96,7 @@ async def update_rule(
 
     if "name" in data and data["name"] is not None:
         rule.name = data["name"].strip()
-    for field in ("rule_type", "threshold", "enabled", "recipients"):
+    for field in ("rule_type", "enabled", "recipients"):
         if field in data:
             setattr(rule, field, data[field])
     if "keyword_ids" in data:

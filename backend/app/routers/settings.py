@@ -76,7 +76,8 @@ async def set_weknora_config(data: WeKnoraConfig, db: AsyncSession = Depends(get
 
 @router.get("/schedule")
 async def get_schedule_config(db: AsyncSession = Depends(get_db)):
-    return await _get_setting(db, "schedule_config", ScheduleConfig().model_dump())
+    data = await _get_setting(db, "schedule_config", ScheduleConfig().model_dump())
+    return ScheduleConfig.model_validate(data).model_dump()
 
 
 @router.put("/schedule")

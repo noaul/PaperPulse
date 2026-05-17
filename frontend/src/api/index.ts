@@ -272,7 +272,6 @@ export interface WeKnoraSettings {
 export interface ScheduleSettings {
   cron_hour: number
   cron_minute: number
-  relevance_threshold: number
 }
 
 export const settingsApi = {
@@ -355,9 +354,7 @@ export interface Report {
   title: string
   source: string | null
   status: string
-  threshold: number
   paper_count: number
-  max_relevance_score: number
   created_at: string | null
   sent_at: string | null
 }
@@ -370,7 +367,6 @@ export interface ReportDetail extends Report {
 }
 
 export interface ReportCreate {
-  threshold: number
   source?: string
   topic_rule_id?: number | null
 }
@@ -380,6 +376,7 @@ export const reportApi = {
   create: (data: ReportCreate) => api.post<Report>('/reports', data),
   get: (id: number) => api.get<ReportDetail>(`/reports/${id}`),
   send: (id: number) => api.post<EmailDelivery>(`/reports/${id}/send`),
+  delete: (id: number) => api.delete(`/reports/${id}`),
   syncWeKnora: (id: number) => api.post(`/reports/${id}/sync-weknora`),
   markdown: (id: number) => api.get<Blob>(`/reports/${id}/markdown`, { responseType: 'blob' }),
   deliveries: (id: number) => api.get<EmailDelivery[]>(`/reports/${id}/deliveries`),
@@ -395,7 +392,6 @@ export interface EmailTopicRule {
   rule_type: EmailRuleType
   keyword_ids: number[]
   exclude_keyword_ids: number[]
-  threshold: number
   enabled: boolean
   recipients: string | null
   created_at: string | null
@@ -407,7 +403,6 @@ export interface EmailTopicRulePayload {
   rule_type: EmailRuleType
   keyword_ids: number[]
   exclude_keyword_ids: number[]
-  threshold: number
   enabled: boolean
   recipients?: string | null
 }
