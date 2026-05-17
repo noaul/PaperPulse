@@ -100,3 +100,70 @@ async def get_recent_high_relevance(
         ))
 
     return papers
+
+
+
+@router.get("/chart-data")
+async def get_chart_data(
+    days: int = Query(14, ge=7, le=90),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    """Return daily aggregated data for dashboard charts."""
+    from sqlalchemy import cast, Date
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days)
+
+    # Daily new papers
+    paper_q = await db.execute(
+        select(
+            cast(Paper.fetched_at, Date).label("day"),
+            func.count(Paper.id),
+        )
+        .where(Paper.workspace_id == workspace.id, Paper.fetched_at >= cutoff)
+        .group_by("day")
+        .order_by("day")
+    )
+    daily_papers = {str(row[0]): row[1] for row in paper_q.all()}
+
+    # Daily analyses
+    analysis_q = await db.execute(
+        select(
+            cast(AnalysisResult.analyzed_at, Date).label("day"),
+            func.count(AnalysisResult.id),
+            func.count(func.distinct(AnalysisResult.paper_id)),
+        )
+        .where(AnalysisResult.workspace_id == workspace.id, AnalysisResult.analyzed_at >= cutoff)
+        .group_by("day")
+        .order_by("day")
+    )
+    daily_analyses = {}
+    daily_related = {}
+    for row in analysis_q.all():
+        daily_analyses[str(row[0])] = row[1]
+        daily_related[str(row[0])] = row[2]
+
+    # Build date series
+    dates = []
+    for i in range(days):
+        d = (now - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
+        dates.append(d)
+
+    # Total papers cumulative
+    total_before = (await db.execute(
+        select(func.count(Paper.id)).where(Paper.workspace_id == workspace.id, Paper.fetched_at < cutoff)
+    )).scalar() or 0
+
+    cumulative = []
+    running = total_before
+    for d in dates:
+        running += daily_papers.get(d, 0)
+        cumulative.append(running)
+
+    return {
+        "dates": dates,
+        "daily_new_papers": [daily_papers.get(d, 0) for d in dates],
+        "daily_analyses": [daily_analyses.get(d, 0) for d in dates],
+        "daily_related_papers": [daily_related.get(d, 0) for d in dates],
+        "cumulative_papers": cumulative,
+    }
