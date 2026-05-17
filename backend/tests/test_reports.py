@@ -15,9 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select
 
 from app.database import Base, engine, SessionLocal
-from app.models import AnalysisResult, EmailDelivery, Keyword, Paper, Report, ReportItem, Setting
+from app.models import AnalysisResult, EmailDelivery, EmailTopicRule, Keyword, Paper, Report, ReportItem, Setting
 from app.services.email_sender import build_email_html
-from app.services.report_center import create_report_from_recent_analyses, send_report_email
+from app.services.report_center import create_and_send_recent_report, create_report_from_recent_analyses, send_report_email
 
 
 class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
@@ -202,6 +202,111 @@ class ReportCenterTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("AI found moderate relevance", report.markdown)
             self.assertIn("未达到阈值的 AI 分析", report.html)
             self.assertIn("Below threshold but analyzed paper", report.html)
+
+    async def test_report_excludes_zero_score_items_even_when_threshold_is_zero(self):
+        async with SessionLocal() as db:
+            keyword = Keyword(word="alloy", enabled=True)
+            paper = Paper(title="Zero score paper", url="https://example.test/zero")
+            db.add_all([keyword, paper])
+            await db.commit()
+            await db.refresh(keyword)
+            await db.refresh(paper)
+            db.add(AnalysisResult(
+                paper_id=paper.id,
+                keyword_id=keyword.id,
+                relevance_score=0.0,
+                summary="与研究方向无关",
+                analyzed_at=datetime.now(timezone.utc),
+            ))
+            await db.commit()
+
+            report = await create_report_from_recent_analyses(
+                db,
+                threshold=0.0,
+                source="unit-test",
+                paper_ids=[paper.id],
+            )
+
+            items = (await db.execute(select(ReportItem).where(ReportItem.report_id == report.id))).scalars().all()
+            self.assertEqual(0, report.paper_count)
+            self.assertEqual([], items)
+            self.assertNotIn("Zero score paper", report.markdown)
+            self.assertNotIn("Zero score paper", report.html)
+
+    async def test_create_and_send_report_skips_email_when_only_zero_score_items_exist(self):
+        async with SessionLocal() as db:
+            keyword = Keyword(word="alloy", enabled=True)
+            paper = Paper(title="Zero score email paper", url="https://example.test/zero-email")
+            db.add_all([keyword, paper])
+            db.add(Setting(
+                key="email_config",
+                value=json.dumps({
+                    "enabled": True,
+                    "smtp_server": "smtp.example.test",
+                    "smtp_port": 587,
+                    "smtp_user": "sender@example.test",
+                    "smtp_password": "secret",
+                    "recipient": "reader@example.test",
+                }),
+            ))
+            await db.commit()
+            await db.refresh(keyword)
+            await db.refresh(paper)
+            db.add(AnalysisResult(
+                paper_id=paper.id,
+                keyword_id=keyword.id,
+                relevance_score=0.0,
+                summary="与研究方向无关",
+                analyzed_at=datetime.now(timezone.utc),
+            ))
+            await db.commit()
+
+            with patch("app.services.report_center.open_smtp_connection") as open_smtp:
+                result = await create_and_send_recent_report(
+                    db,
+                    threshold=0.0,
+                    source="unit-test",
+                    paper_ids=[paper.id],
+                )
+
+            deliveries = (await db.execute(select(EmailDelivery))).scalars().all()
+            self.assertFalse(result["sent"])
+            self.assertTrue(result["skipped"])
+            self.assertEqual(0, result["paper_count"])
+            self.assertEqual([], deliveries)
+            open_smtp.assert_not_called()
+
+    async def test_topic_report_excludes_zero_score_items(self):
+        async with SessionLocal() as db:
+            keyword = Keyword(word="alloy", enabled=True)
+            paper = Paper(title="Zero score topic paper", url="https://example.test/zero-topic")
+            db.add_all([keyword, paper])
+            await db.commit()
+            await db.refresh(keyword)
+            await db.refresh(paper)
+
+            rule = EmailTopicRule(name="Alloy topic", rule_type="OR", threshold=0.0, workspace_id=1)
+            rule.set_keyword_ids([keyword.id])
+            db.add(rule)
+            db.add(AnalysisResult(
+                paper_id=paper.id,
+                keyword_id=keyword.id,
+                relevance_score=0.0,
+                summary="与研究方向无关",
+                analyzed_at=datetime.now(timezone.utc),
+            ))
+            await db.commit()
+            await db.refresh(rule)
+
+            report = await create_report_from_recent_analyses(
+                db,
+                source="unit-test",
+                topic_rule=rule,
+                workspace_id=1,
+            )
+
+            self.assertEqual(0, report.paper_count)
+            self.assertNotIn("Zero score topic paper", report.markdown)
 
     async def test_empty_email_html_explains_when_no_papers_match_threshold(self):
         html = await build_email_html([], threshold=7.0, analyzed_count=44, related_count=3)

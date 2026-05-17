@@ -76,6 +76,7 @@ async def collect_recent_report_items(
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .where(AnalysisResult.relevance_score > 0)
         .where(AnalysisResult.relevance_score >= effective_threshold)
         .where(AnalysisResult.workspace_id == workspace_id)
         .where(Paper.workspace_id == workspace_id)
@@ -145,6 +146,7 @@ async def collect_below_threshold_digest_items(
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
+        .where(AnalysisResult.relevance_score > 0)
         .where(AnalysisResult.relevance_score < threshold)
         .where(AnalysisResult.workspace_id == workspace_id)
         .where(Paper.workspace_id == workspace_id)
@@ -322,6 +324,10 @@ async def send_report_email(db: AsyncSession, report_id: int) -> EmailDelivery:
     return delivery
 
 
+def report_has_email_content(report: Report) -> bool:
+    return report.paper_count > 0 or "Below-threshold AI analyses" in (report.markdown or "")
+
+
 async def create_and_send_recent_report(
     db: AsyncSession,
     threshold: float,
@@ -390,6 +396,15 @@ async def create_and_send_recent_report(
         related_count=related_count,
         workspace_id=workspace_id,
     )
+    if not report_has_email_content(report):
+        return {
+            "report_id": report.id,
+            "sent": False,
+            "skipped": True,
+            "reason": "没有可发送的论文",
+            "paper_count": report.paper_count,
+            "delivery_id": None,
+        }
     delivery = await send_report_email(db, report.id)
     return {
         "report_id": report.id,

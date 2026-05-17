@@ -12,13 +12,13 @@ from .nodes.weknora_sync import WeKnoraSyncNode
 
 
 async def run_analysis_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
-    return await WorkflowEngine(db).run("manual-analysis", [AiAnalyzeNode()], workspace_id=workspace_id)
+    return await WorkflowEngine(db).run("manual-analysis", [AiAnalyzeNode(), EmailReportNode()], workspace_id=workspace_id)
 
 
 async def run_fetch_analyze_workflow(db: AsyncSession, workspace_id: int = 1) -> WorkflowExecution:
     return await WorkflowEngine(db).run(
         "manual-fetch-analyze",
-        [FetchRssNode(), AiAnalyzeNode()],
+        [FetchRssNode(), AiAnalyzeNode(), EmailReportNode()],
         workspace_id=workspace_id,
     )
 
@@ -65,9 +65,9 @@ async def create_fetch_analyze_workflow_execution(db: AsyncSession, workspace_id
 
 async def run_analysis_workflow_execution(execution_id: int) -> None:
     async with SessionLocal() as db:
-        await WorkflowEngine(db).run_existing(execution_id, [AiAnalyzeNode()])
+        await WorkflowEngine(db).run_existing(execution_id, [AiAnalyzeNode(), EmailReportNode()])
 
 
 async def run_fetch_analyze_workflow_execution(execution_id: int) -> None:
     async with SessionLocal() as db:
-        await WorkflowEngine(db).run_existing(execution_id, [FetchRssNode(), AiAnalyzeNode()])
+        await WorkflowEngine(db).run_existing(execution_id, [FetchRssNode(), AiAnalyzeNode(), EmailReportNode()])

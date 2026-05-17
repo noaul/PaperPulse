@@ -91,6 +91,21 @@ input:focus, select:focus, textarea:focus {
   font-weight: 800;
 }
 
+.paper-brand-word {
+  color: var(--xai-ink);
+  font-size: 1.12rem;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0;
+  font-family: Inter, "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+}
+
+.paper-brand-accent {
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
 .paper-account-button {
   display: flex;
   align-items: center;
@@ -307,9 +322,22 @@ input:focus, select:focus, textarea:focus {
   transition: background 200ms ease, color 200ms ease;
 }
 
+.paper-side-nav-mark-featured {
+  color: var(--xai-ink);
+  font-size: 0.82rem;
+  font-weight: 850;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
 .paper-side-nav-link:hover .paper-side-nav-mark {
   background: rgba(255,255,255,0.1);
   color: var(--xai-body);
+}
+
+.paper-side-nav-link:hover .paper-side-nav-mark-featured {
+  color: var(--xai-ink);
+  background: rgba(255,255,255,0.14);
 }
 
 .paper-side-nav-link-active .paper-side-nav-mark {

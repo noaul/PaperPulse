@@ -18,6 +18,7 @@ from app.models import AnalysisResult, Keyword, Paper, Setting, WorkflowExecutio
 from app.routers.executions import set_execution_control
 from app.services import ai_analyzer
 from app.services.ai_analyzer import analyze_new_papers
+from app.workflows import daily as daily_workflow_module
 from app.workflows.context import WorkflowCancelled, WorkflowContext
 from app.workflows.engine import WorkflowEngine
 from app.workflows.nodes import ai_analyze as ai_analyze_node_module
@@ -104,6 +105,37 @@ class WorkflowEngineTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(5, execution.summary_dict["analysis_total"])
             self.assertEqual(2, execution.summary_dict["analysis_analyzed"])
             self.assertEqual(1, execution.summary_dict["analysis_related"])
+
+    async def test_manual_analysis_workflows_send_email_after_analysis(self):
+        original_engine = daily_workflow_module.WorkflowEngine
+        calls = []
+
+        class FakeEngine:
+            def __init__(self, db):
+                self.db = db
+
+            async def run(self, workflow_name, nodes, *, workspace_id=1, **kwargs):
+                calls.append((workflow_name, [node.name for node in nodes], workspace_id))
+                return WorkflowExecution(workflow_name=workflow_name, status="success", workspace_id=workspace_id)
+
+            async def run_existing(self, execution_id, nodes, **kwargs):
+                calls.append((execution_id, [node.name for node in nodes], None))
+                return WorkflowExecution(id=execution_id, workflow_name="existing", status="success")
+
+        daily_workflow_module.WorkflowEngine = FakeEngine
+        try:
+            async with SessionLocal() as db:
+                await daily_workflow_module.run_analysis_workflow(db, workspace_id=2)
+                await daily_workflow_module.run_fetch_analyze_workflow(db, workspace_id=3)
+                await daily_workflow_module.run_analysis_workflow_execution(10)
+                await daily_workflow_module.run_fetch_analyze_workflow_execution(11)
+
+            self.assertEqual(("manual-analysis", ["ai-analyze", "email-report"], 2), calls[0])
+            self.assertEqual(("manual-fetch-analyze", ["fetch-rss", "ai-analyze", "email-report"], 3), calls[1])
+            self.assertEqual((10, ["ai-analyze", "email-report"], None), calls[2])
+            self.assertEqual((11, ["fetch-rss", "ai-analyze", "email-report"], None), calls[3])
+        finally:
+            daily_workflow_module.WorkflowEngine = original_engine
 
     async def test_analyze_new_papers_limits_progress_total_to_target_paper_ids(self):
         original_request = ai_analyzer.request_chat_completion

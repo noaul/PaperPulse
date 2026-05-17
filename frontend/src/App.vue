@@ -16,7 +16,9 @@
             </svg>
           </div>
           <div v-if="!appStore.sidebarCollapsed" class="min-w-0">
-            <div class="truncate text-sm font-normal tracking-tight text-[var(--xai-ink)]">PaperPulse</div>
+            <div class="paper-brand-word truncate" aria-label="PaperPulse">
+              <span class="paper-brand-accent">P</span>aper<span class="paper-brand-accent">P</span>ulse
+            </div>
           </div>
         </router-link>
       </div>
@@ -75,7 +77,9 @@
           :class="['paper-side-nav-link', isActive(item.path) ? 'paper-side-nav-link-active' : '']"
           :title="item.label"
         >
-          <span class="paper-side-nav-mark">{{ item.mark }}</span>
+          <span :class="['paper-side-nav-mark', item.featured ? 'paper-side-nav-mark-featured' : '']">
+            {{ item.mark }}
+          </span>
           <span v-if="!appStore.sidebarCollapsed" class="truncate">{{ item.label }}</span>
         </router-link>
       </nav>
@@ -199,9 +203,9 @@ const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorksp
 const accountInitial = computed(() => (appStore.authUsername || 'P').trim().slice(0, 1).toUpperCase())
 
 const navItems = [
-  { path: '/dashboard', label: '仪表盘', mark: 'D' },
-  { path: '/papers', label: '论文', mark: 'P' },
-  { path: '/analysis', label: '分析结果', mark: 'A' },
+  { path: '/dashboard', label: '仪表盘', mark: 'D', featured: true },
+  { path: '/papers', label: '论文', mark: 'P', featured: true },
+  { path: '/analysis', label: '分析结果', mark: 'A', featured: true },
   { path: '/reports', label: '报告', mark: 'R' },
   { path: '/feeds', label: '订阅源', mark: 'F' },
   { path: '/email-topics', label: '邮件主题', mark: 'M' },
