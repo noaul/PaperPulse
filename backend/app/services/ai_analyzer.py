@@ -409,7 +409,7 @@ async def analyze_new_papers(
             await control_callback()
         all_results.extend(results)
         analyzed_count += 1
-        if results:
+        if any(r.relevance_score > 0 for r in results):
             related_count += 1
         if progress_callback:
             await progress_callback({
