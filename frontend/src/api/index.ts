@@ -309,10 +309,11 @@ export interface Analysis {
 }
 
 export const analysisApi = {
-  list: (params?: { page?: number; page_size?: number; min_score?: number }) =>
+  list: (params?: { page?: number; page_size?: number; min_score?: number; keyword_id?: number; keyword?: string }) =>
     api.get<PaginatedResponse<Analysis>>('/analysis', { params }),
   run: () => api.post('/analysis/run'),
   runBackground: () => api.post('/analysis/run-background'),
+  reanalyze: (days: number) => api.post('/analysis/reanalyze', null, { params: { days } }),
   fetchAndAnalyze: () => api.post('/analysis/fetch-and-analyze'),
   fetchAndAnalyzeBackground: () => api.post('/analysis/fetch-and-analyze-background'),
   sendReport: () => api.post('/analysis/send-report'),
@@ -440,6 +441,14 @@ export const dashboardApi = {
   getStats: () => api.get<DashboardStats>('/dashboard/stats'),
   getRecentHighRelevance: (limit?: number) =>
     api.get<RecentPaper[]>('/dashboard/recent-high-relevance', { params: { limit } }),
+  getChartData: (days?: number) =>
+    api.get<{
+      dates: string[]
+      daily_new_papers: number[]
+      daily_analyses: number[]
+      daily_related_papers: number[]
+      cumulative_papers: number[]
+    }>('/dashboard/chart-data', { params: { days } }),
 }
 
 // ==================== Workflow Executions ====================
