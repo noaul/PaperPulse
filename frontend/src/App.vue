@@ -181,6 +181,29 @@
         </div>
       </section>
     </div>
+
+    <ModalDialog
+      :visible="createWsOpen"
+      type="prompt"
+      eyebrow="WORKSPACE"
+      title="新建工作区"
+      placeholder="请输入工作区名称"
+      confirm-text="创建"
+      @confirm="onCreateWsConfirm"
+      @cancel="createWsOpen = false"
+    />
+
+    <ModalDialog
+      :visible="deleteWsOpen"
+      type="confirm"
+      eyebrow="WORKSPACE"
+      :title="`删除工作区「${workspaceStore.currentWorkspace?.name}」`"
+      message="该操作不可恢复，工作区内的所有数据将被清除。"
+      confirm-text="确认删除"
+      :danger="true"
+      @confirm="onDeleteWsConfirm"
+      @cancel="deleteWsOpen = false"
+    />
   </div>
 </template>
 
@@ -190,6 +213,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { workspaceApi } from '@/api'
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
+import ModalDialog from '@/components/ModalDialog.vue'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
@@ -197,6 +221,8 @@ const route = useRoute()
 const router = useRouter()
 const accountMenuOpen = ref(false)
 const aboutOpen = ref(false)
+const createWsOpen = ref(false)
+const deleteWsOpen = ref(false)
 
 const currentTitle = computed(() => (route.meta.title as string) || 'PaperPulse')
 const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorkspaceId || 'default'}`)
@@ -246,10 +272,14 @@ function switchWorkspace(event: Event) {
 }
 
 async function createWorkspace() {
-  const name = window.prompt('请输入新工作区名称')
-  if (!name?.trim()) return
+  createWsOpen.value = true
+}
+
+async function onCreateWsConfirm(name: string) {
+  createWsOpen.value = false
+  if (!name) return
   try {
-    const { data } = await workspaceApi.create({ name: name.trim() })
+    const { data } = await workspaceApi.create({ name })
     await workspaceStore.load()
     workspaceStore.switchWorkspace(data.id)
   } catch (err: any) {
@@ -260,7 +290,13 @@ async function createWorkspace() {
 async function deleteWorkspace() {
   const ws = workspaceStore.currentWorkspace
   if (!ws || ws.is_default) return
-  if (!window.confirm(`确定删除工作区「${ws.name}」？该操作不可恢复。`)) return
+  deleteWsOpen.value = true
+}
+
+async function onDeleteWsConfirm() {
+  deleteWsOpen.value = false
+  const ws = workspaceStore.currentWorkspace
+  if (!ws) return
   try {
     await workspaceApi.delete(ws.id)
     await workspaceStore.load()
