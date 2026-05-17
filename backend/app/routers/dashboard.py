@@ -40,11 +40,11 @@ async def get_stats(
     )
     today_analyses = result.scalar() or 0
 
-    # High relevance today (score >= 6)
+    # Related today (matched any keyword, score > 0)
     result = await db.execute(
         select(func.count(func.distinct(AnalysisResult.paper_id)))
         .where(AnalysisResult.analyzed_at >= today_start)
-        .where(AnalysisResult.relevance_score >= 6.0)
+        .where(AnalysisResult.relevance_score > 0)
         .where(AnalysisResult.workspace_id == workspace.id)
     )
     high_relevance_today = result.scalar() or 0
@@ -82,7 +82,7 @@ async def get_recent_high_relevance(
         .join(AnalysisResult, AnalysisResult.paper_id == Paper.id)
         .where(Paper.workspace_id == workspace.id, AnalysisResult.workspace_id == workspace.id)
         .group_by(Paper.id)
-        .having(func.max(AnalysisResult.relevance_score) >= 5.0)
+        .having(func.max(AnalysisResult.relevance_score) > 0)
         .order_by(desc("relevance_score"), desc(Paper.fetched_at))
         .limit(limit)
     )
@@ -126,22 +126,32 @@ async def get_chart_data(
     )
     daily_papers = {str(row[0]): row[1] for row in paper_q.all()}
 
-    # Daily analyses
+    # Daily analyses (all) and daily related (score > 0 only)
     analysis_q = await db.execute(
         select(
             cast(AnalysisResult.analyzed_at, Date).label("day"),
             func.count(AnalysisResult.id),
-            func.count(func.distinct(AnalysisResult.paper_id)),
         )
         .where(AnalysisResult.workspace_id == workspace.id, AnalysisResult.analyzed_at >= cutoff)
         .group_by("day")
         .order_by("day")
     )
-    daily_analyses = {}
-    daily_related = {}
-    for row in analysis_q.all():
-        daily_analyses[str(row[0])] = row[1]
-        daily_related[str(row[0])] = row[2]
+    daily_analyses = {str(row[0]): row[1] for row in analysis_q.all()}
+
+    related_q = await db.execute(
+        select(
+            cast(AnalysisResult.analyzed_at, Date).label("day"),
+            func.count(func.distinct(AnalysisResult.paper_id)),
+        )
+        .where(
+            AnalysisResult.workspace_id == workspace.id,
+            AnalysisResult.analyzed_at >= cutoff,
+            AnalysisResult.relevance_score > 0,
+        )
+        .group_by("day")
+        .order_by("day")
+    )
+    daily_related = {str(row[0]): row[1] for row in related_q.all()}
 
     # Build date series
     dates = []
