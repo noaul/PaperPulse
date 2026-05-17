@@ -181,7 +181,15 @@ async def analyze_paper(
         return []
 
     keyword_list = ", ".join(k.word for k in keywords)
-    prompt = f"""You are an academic paper analyst. Given a paper abstract and a list of research keywords, evaluate the relevance.
+    prompt = f"""You are an academic paper analyst. Given a paper and a list of research topics/keywords, do TWO things:
+
+1. RELEVANCE: Determine which keywords this paper is related to. A paper is related to a keyword if the topic is mentioned, discussed, or directly applicable. Use OR logic — matching ANY single keyword counts.
+
+2. SCORING: Rate the paper's research quality, innovation, and scientific significance on a scale of 0-10:
+   - 0-3: Incremental or low novelty
+   - 4-6: Solid contribution with moderate novelty
+   - 7-9: Significant innovation or breakthrough
+   - 10: Landmark/paradigm-shifting work
 
 Keywords: {keyword_list}
 
@@ -189,10 +197,10 @@ Paper Title: {paper.title}
 Abstract: {paper.abstract or 'N/A'}
 
 Respond in JSON format:
-{{"relevance_score": <0-10>, "matched_keywords": ["keyword1"], "summary": "<brief Chinese summary of why this paper is relevant, 1-2 sentences>"}}
+{{"relevance_score": <0-10 research quality score>, "matched_keywords": ["keyword1", "keyword2"], "summary": "<brief Chinese summary: what this paper does and why it matters, 1-2 sentences>"}}
 
-If not relevant at all, score 0 and summary "与研究方向无关".
-    Respond ONLY with the JSON object, no markdown."""
+If the paper is not related to ANY keyword, return matched_keywords as [] and summary "与研究方向无关".
+Respond ONLY with the JSON object, no markdown."""
 
     try:
         content = await request_chat_completion(config, [{"role": "user", "content": prompt}], max_tokens=500)

@@ -26,12 +26,18 @@ async def list_analyses(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     min_score: Optional[float] = None,
+    keyword_id: Optional[int] = None,
+    keyword: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     workspace: Workspace = Depends(get_current_workspace),
 ):
     count_query = select(func.count(AnalysisResult.id)).where(AnalysisResult.workspace_id == workspace.id)
     if min_score is not None:
         count_query = count_query.where(AnalysisResult.relevance_score >= min_score)
+    if keyword_id is not None:
+        count_query = count_query.where(AnalysisResult.keyword_id == keyword_id)
+    if keyword:
+        count_query = count_query.join(Keyword, AnalysisResult.keyword_id == Keyword.id).where(Keyword.word.ilike(f"%{keyword}%"))
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
@@ -53,6 +59,10 @@ async def list_analyses(
     )
     if min_score is not None:
         query = query.where(AnalysisResult.relevance_score >= min_score)
+    if keyword_id is not None:
+        query = query.where(AnalysisResult.keyword_id == keyword_id)
+    if keyword:
+        query = query.where(Keyword.word.ilike(f"%{keyword}%"))
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     rows = result.all()
@@ -105,6 +115,56 @@ async def run_analysis_background(
         "execution_id": execution.id,
         "status": execution.status,
         "summary": execution.summary_dict,
+    }
+
+
+@router.post("/reanalyze")
+async def reanalyze(
+    days: int = Query(1, ge=1, le=30),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    """Re-analyze papers from the past N days, overwriting old results."""
+    from datetime import datetime, timedelta, timezone
+    from ..models import AnalysisResult as AR
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    # Find papers fetched in the last N days
+    paper_result = await db.execute(
+        select(Paper.id).where(
+            Paper.workspace_id == workspace.id,
+            Paper.fetched_at >= cutoff,
+        )
+    )
+    paper_ids = [row[0] for row in paper_result.all()]
+    if not paper_ids:
+        return {"success": True, "message": f"过去{days}天内没有论文", "paper_count": 0}
+
+    # Delete existing analysis results for these papers
+    from sqlalchemy import delete
+    await db.execute(
+        delete(AR).where(AR.workspace_id == workspace.id, AR.paper_id.in_(paper_ids))
+    )
+    await db.commit()
+
+    # Create execution and run in background
+    execution = await create_analysis_workflow_execution(db, workspace_id=workspace.id)
+    # Store paper_ids in summary so the node picks them up
+    import json
+    execution.summary_json = json.dumps({
+        **execution.summary_dict,
+        "target_paper_ids": paper_ids,
+    })
+    await db.commit()
+
+    background_tasks.add_task(run_analysis_workflow_execution, execution.id)
+    return {
+        "success": True,
+        "execution_id": execution.id,
+        "paper_count": len(paper_ids),
+        "days": days,
+        "message": f"正在重新分析过去{days}天的{len(paper_ids)}篇论文",
     }
 
 

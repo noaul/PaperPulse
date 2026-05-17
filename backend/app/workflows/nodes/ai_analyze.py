@@ -14,6 +14,8 @@ class AiAnalyzeNode(WorkflowNode):
         paper_ids = None
         if "fetched_paper_ids" in context.state:
             paper_ids = context.state["fetched_paper_ids"]
+        elif context.summary.get("target_paper_ids"):
+            paper_ids = context.summary["target_paper_ids"]
 
         results = await analyze_new_papers(
             context.db,

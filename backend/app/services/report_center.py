@@ -68,12 +68,15 @@ async def collect_recent_report_items(
     topic_rule: EmailTopicRule | None = None,
 ) -> list[dict]:
     today = _utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    # When using topic rules, collect ALL matched papers (threshold=0)
+    # The topic rule's keyword logic determines inclusion, not the score
+    effective_threshold = 0.0 if topic_rule else threshold
     query = (
         select(AnalysisResult, Paper, Keyword, Feed.journal_name)
         .join(Paper, AnalysisResult.paper_id == Paper.id)
         .join(Keyword, AnalysisResult.keyword_id == Keyword.id)
         .outerjoin(Feed, Paper.feed_id == Feed.id)
-        .where(AnalysisResult.relevance_score >= threshold)
+        .where(AnalysisResult.relevance_score >= effective_threshold)
         .where(AnalysisResult.workspace_id == workspace_id)
         .where(Paper.workspace_id == workspace_id)
         .where(Keyword.workspace_id == workspace_id)
@@ -122,7 +125,7 @@ async def collect_recent_report_items(
                 required_keyword_ids=topic_rule.keyword_ids,
                 exclude_keyword_ids=topic_rule.exclude_keyword_ids,
                 paper_keyword_scores=paper_keyword_scores.get(item["paper_id"], {}),
-                threshold=topic_rule.threshold,
+                threshold=0.0,  # Any match counts - score is for quality, not relevance
             )
         ]
 
