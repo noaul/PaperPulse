@@ -80,11 +80,38 @@
         </router-link>
       </nav>
 
-      <div class="space-y-2 border-t border-[var(--xai-hairline)] p-3">
-        <div v-if="!appStore.sidebarCollapsed" class="rounded-lg border border-[var(--xai-hairline)] px-3 py-2">
-          <div class="truncate xai-eyebrow">ACCOUNT</div>
-          <div class="truncate text-sm text-[var(--xai-ink)] mt-1">{{ appStore.authUsername }}</div>
+      <div class="relative space-y-2 border-t border-[var(--xai-hairline)] p-3">
+        <div
+          v-if="accountMenuOpen"
+          :class="['paper-account-menu', appStore.sidebarCollapsed ? 'paper-account-menu-collapsed' : '']"
+        >
+          <router-link to="/settings" class="paper-account-menu-item" @click="closeAccountMenu">
+            <span class="paper-account-menu-title">设置</span>
+            <span class="paper-account-menu-desc">AI、邮件、同步和定时任务</span>
+          </router-link>
+          <button class="paper-account-menu-item" type="button" @click="openAbout">
+            <span class="paper-account-menu-title">关于项目</span>
+            <span class="paper-account-menu-desc">PaperPulse 版本与项目说明</span>
+          </button>
+          <button class="paper-account-menu-item paper-account-menu-danger" type="button" @click="handleLogout">
+            <span class="paper-account-menu-title">退出登录</span>
+            <span class="paper-account-menu-desc">结束当前会话</span>
+          </button>
         </div>
+
+        <button
+          :class="['paper-account-button', accountMenuOpen ? 'paper-account-button-active' : '']"
+          type="button"
+          title="账户菜单"
+          @click="toggleAccountMenu"
+        >
+          <span class="paper-account-avatar">{{ accountInitial }}</span>
+          <span v-if="!appStore.sidebarCollapsed" class="min-w-0 flex-1 text-left">
+            <span class="block truncate xai-eyebrow">ACCOUNT</span>
+            <span class="mt-1 block truncate text-sm text-[var(--xai-ink)]">{{ appStore.authUsername }}</span>
+          </span>
+          <span v-if="!appStore.sidebarCollapsed" class="paper-account-chevron">⌄</span>
+        </button>
         <button
           class="paper-side-action"
           title="收起侧边栏"
@@ -92,10 +119,6 @@
         >
           <span class="paper-side-nav-mark">{{ appStore.sidebarCollapsed ? '›' : '‹' }}</span>
           <span v-if="!appStore.sidebarCollapsed">收起侧边栏</span>
-        </button>
-        <button class="paper-side-action" title="退出登录" @click="handleLogout">
-          <span class="paper-side-nav-mark">×</span>
-          <span v-if="!appStore.sidebarCollapsed">退出登录</span>
         </button>
       </div>
     </aside>
@@ -129,11 +152,36 @@
         </button>
       </div>
     </div>
+
+    <div v-if="aboutOpen" class="paper-about-overlay" @click.self="closeAbout">
+      <section class="paper-about-dialog" role="dialog" aria-modal="true" aria-labelledby="paper-about-title">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="xai-eyebrow">ABOUT</p>
+            <h2 id="paper-about-title" class="mt-2 text-xl font-semibold text-[var(--xai-ink)]">PaperPulse</h2>
+          </div>
+          <button class="paper-about-close" type="button" title="关闭" @click="closeAbout">×</button>
+        </div>
+        <p class="mt-4 text-sm leading-6 text-[var(--xai-body)]">
+          PaperPulse 是一个学术论文追踪工具，用于订阅期刊 RSS、执行 AI 文献分析、整理分析报告并通过邮件推送。
+        </p>
+        <div class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+          <div class="paper-about-meta">
+            <span>版本</span>
+            <strong>1.0.0</strong>
+          </div>
+          <div class="paper-about-meta">
+            <span>项目</span>
+            <strong>uovme/PaperPulse</strong>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { workspaceApi } from '@/api'
 import { useAppStore } from '@/stores/app'
@@ -143,9 +191,12 @@ const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
 const route = useRoute()
 const router = useRouter()
+const accountMenuOpen = ref(false)
+const aboutOpen = ref(false)
 
 const currentTitle = computed(() => (route.meta.title as string) || 'PaperPulse')
 const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorkspaceId || 'default'}`)
+const accountInitial = computed(() => (appStore.authUsername || 'P').trim().slice(0, 1).toUpperCase())
 
 const navItems = [
   { path: '/dashboard', label: '仪表盘', mark: 'D' },
@@ -155,7 +206,6 @@ const navItems = [
   { path: '/feeds', label: '订阅源', mark: 'F' },
   { path: '/email-topics', label: '邮件主题', mark: 'M' },
   { path: '/reading-queue', label: '阅读队列', mark: 'Q' },
-  { path: '/settings', label: '设置', mark: 'S' },
 ]
 
 function isActive(path: string): boolean {
@@ -164,8 +214,26 @@ function isActive(path: string): boolean {
 }
 
 function handleLogout() {
+  closeAccountMenu()
   appStore.logout()
   router.push('/login')
+}
+
+function toggleAccountMenu() {
+  accountMenuOpen.value = !accountMenuOpen.value
+}
+
+function closeAccountMenu() {
+  accountMenuOpen.value = false
+}
+
+function openAbout() {
+  closeAccountMenu()
+  aboutOpen.value = true
+}
+
+function closeAbout() {
+  aboutOpen.value = false
 }
 
 function switchWorkspace(event: Event) {
