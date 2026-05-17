@@ -32,24 +32,6 @@ async def list_workspaces(db: AsyncSession = Depends(get_db)):
     return [WorkspaceOut.model_validate(workspace) for workspace in result.scalars().all()]
 
 
-@router.post("", response_model=WorkspaceOut)
-async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(get_db)):
-    await ensure_default_workspace(db)
-    workspace = Workspace(
-        name=payload.name.strip(),
-        slug=await _unique_slug(db, payload.slug or payload.name),
-        description=payload.description,
-        color=payload.color or "#4F46E5",
-        icon=payload.icon or "folder",
-        enabled=True,
-        is_default=False,
-    )
-    db.add(workspace)
-    await db.commit()
-    await db.refresh(workspace)
-    return WorkspaceOut.model_validate(workspace)
-
-
 @router.get("/{workspace_id}", response_model=WorkspaceOut)
 async def get_workspace(workspace_id: int, db: AsyncSession = Depends(get_db)):
     workspace = await db.get(Workspace, workspace_id)
