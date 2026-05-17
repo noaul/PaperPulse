@@ -48,6 +48,14 @@
             >
               +
             </button>
+            <button
+              class="rounded-lg border px-2 py-2 text-xs font-semibold text-red-500 hover:bg-red-50"
+              title="删除当前工作区"
+              @click="deleteWorkspace"
+              v-if="workspaceStore.currentWorkspace && !workspaceStore.currentWorkspace.is_default"
+            >
+              ✕
+            </button>
           </div>
         </div>
         <button
@@ -176,6 +184,21 @@ async function createWorkspace() {
     workspaceStore.switchWorkspace(data.id)
   } catch (err: any) {
     appStore.error('创建工作区失败: ' + err.message)
+  }
+}
+
+async function deleteWorkspace() {
+  const ws = workspaceStore.currentWorkspace
+  if (!ws || ws.is_default) return
+  if (!window.confirm(`确定删除工作区「${ws.name}」？该操作不可恢复。`)) return
+  try {
+    await workspaceApi.delete(ws.id)
+    await workspaceStore.load()
+    const def = workspaceStore.workspaces.find(w => w.is_default) || workspaceStore.workspaces[0]
+    if (def) workspaceStore.switchWorkspace(def.id)
+    appStore.success('工作区已删除')
+  } catch (err: any) {
+    appStore.error('删除失败: ' + (err.response?.data?.detail || err.message))
   }
 }
 

@@ -3,24 +3,40 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
       <div class="flex flex-wrap items-center gap-4">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">最低相关性</label>
+          <label class="block text-xs text-gray-500 mb-1">研究质量评分</label>
           <select
             v-model.number="filters.min_score"
             @change="loadAnalyses(1)"
             class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
           >
-            <option :value="0">全部结果</option>
-            <option :value="3">≥ 3 低相关</option>
-            <option :value="5">≥ 5 中相关</option>
-            <option :value="7">≥ 7 高相关</option>
+            <option :value="0">全部评分</option>
+            <option :value="3">≥ 3 一般</option>
+            <option :value="5">≥ 5 良好</option>
+            <option :value="7">≥ 7 优秀</option>
+            <option :value="9">≥ 9 顶尖</option>
           </select>
         </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">按主题词/关键词筛选</label>
+          <input
+            v-model.trim="filters.keyword"
+            @keyup.enter="loadAnalyses(1)"
+            placeholder="输入关键词..."
+            class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm w-48"
+          />
+        </div>
         <button
-          @click="loadAnalyses(currentPage)"
+          @click="loadAnalyses(1)"
           :disabled="loading"
           class="mt-5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          刷新
+          筛选
+        </button>
+        <button
+          @click="clearFilters"
+          class="mt-5 px-4 py-2 text-gray-600 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50"
+        >
+          重置
         </button>
         <div class="mt-5 text-sm text-gray-500">
           共 {{ totalAnalyses }} 条分析结果
@@ -137,6 +153,7 @@ const pageSize = 20
 
 const filters = reactive({
   min_score: 0,
+  keyword: '',
 })
 
 function scoreBadgeClass(score: number): string {
@@ -149,15 +166,22 @@ function formatDateTime(value: string): string {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
 }
 
+function clearFilters() {
+  filters.min_score = 0
+  filters.keyword = ''
+  loadAnalyses(1)
+}
+
 async function loadAnalyses(page: number) {
   if (page < 1) return
   loading.value = true
   try {
-    const params: { page: number; page_size: number; min_score?: number } = {
+    const params: { page: number; page_size: number; min_score?: number; keyword?: string } = {
       page,
       page_size: pageSize,
     }
     if (filters.min_score) params.min_score = filters.min_score
+    if (filters.keyword) params.keyword = filters.keyword
     const { data } = await analysisApi.list(params)
     analyses.value = data.items
     currentPage.value = data.page

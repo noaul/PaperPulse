@@ -168,6 +168,50 @@
       </p>
     </div>
 
+    <!-- Chart: Daily Stats -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-800">数据趋势</h2>
+        <div class="flex items-center gap-2">
+          <select v-model.number="reanalyzeDays" class="px-2 py-1 border rounded text-sm">
+            <option :value="1">1天</option>
+            <option :value="3">3天</option>
+            <option :value="7">7天</option>
+            <option :value="14">14天</option>
+          </select>
+          <button
+            @click="reanalyze"
+            :disabled="actionLoading"
+            class="px-3 py-1.5 bg-orange-600 text-white text-xs font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50"
+          >
+            重新分析
+          </button>
+        </div>
+      </div>
+      <div v-if="chartData" class="space-y-4">
+        <div class="grid grid-cols-4 gap-3 text-center text-xs text-gray-500 mb-2">
+          <span class="flex items-center gap-1"><span class="w-3 h-1.5 rounded bg-blue-500"></span>每日新增</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1.5 rounded bg-purple-500"></span>每日分析</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1.5 rounded bg-green-500"></span>相关论文</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1.5 rounded bg-gray-400"></span>累计总量</span>
+        </div>
+        <div class="h-40 flex items-end gap-px">
+          <div v-for="(d, i) in chartData.dates" :key="d" class="flex-1 flex flex-col items-center gap-0.5 group relative">
+            <div class="w-full flex flex-col justify-end h-32 gap-px">
+              <div class="bg-blue-500 rounded-t-sm" :style="{ height: barH(chartData.daily_new_papers[i], chartMax) }"></div>
+              <div class="bg-purple-500" :style="{ height: barH(chartData.daily_analyses[i], chartMax) }"></div>
+              <div class="bg-green-500 rounded-b-sm" :style="{ height: barH(chartData.daily_related_papers[i], chartMax) }"></div>
+            </div>
+            <span class="text-[9px] text-gray-400 rotate-[-45deg] origin-top-left mt-1 hidden lg:block">{{ d.slice(5) }}</span>
+            <div class="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+              {{ d }}<br/>新增:{{ chartData.daily_new_papers[i] }} 分析:{{ chartData.daily_analyses[i] }} 相关:{{ chartData.daily_related_papers[i] }} 累计:{{ chartData.cumulative_papers[i] }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="text-center text-sm text-gray-400 py-8">加载中...</div>
+    </div>
+
     <!-- Workflow Executions -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -338,7 +382,24 @@ const executionsLoading = ref(true)
 const detailLoading = ref(false)
 const actionLoading = ref(false)
 const controlLoading = ref(false)
+const chartData = ref<any>(null)
+const reanalyzeDays = ref(1)
 let progressTimer: ReturnType<typeof setInterval> | null = null
+
+const chartMax = computed(() => {
+  if (!chartData.value) return 1
+  const all = [
+    ...chartData.value.daily_new_papers,
+    ...chartData.value.daily_analyses,
+    ...chartData.value.daily_related_papers,
+  ]
+  return Math.max(1, ...all)
+})
+
+function barH(val: number, max: number) {
+  if (!val || !max) return '0px'
+  return Math.max(2, (val / max) * 100) + '%'
+}
 
 const statsCards = computed(() => [
   {
@@ -701,10 +762,33 @@ async function runDailyWorkflow() {
   }
 }
 
+async function loadChartData() {
+  try {
+    const { data } = await dashboardApi.getChartData(14)
+    chartData.value = data
+  } catch {}
+}
+
+async function reanalyze() {
+  actionLoading.value = true
+  try {
+    const { data } = await analysisApi.reanalyze(reanalyzeDays.value)
+    appStore.success(data.message || `正在重新分析过去${reanalyzeDays.value}天的论文`)
+    if (data.execution_id) {
+      startProgressPolling(data.execution_id)
+    }
+  } catch (err: any) {
+    appStore.error('重新分析失败: ' + (err.response?.data?.detail || err.message))
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadStats()
   loadRecentPapers()
   loadExecutions(true)
+  loadChartData()
 })
 
 onUnmounted(() => {
