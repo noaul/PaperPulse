@@ -12,6 +12,10 @@ services:
       - STATIC_DIR=/app/static
       - JWT_SECRET=${JWT_SECRET:-paperpulse-change-me-in-production}
       - UVICORN_WORKERS=1
+      # Optional: Use PostgreSQL instead of SQLite (requires asyncpg)
+      # - DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/paperpulse
+      # Optional: Enable CORS for frontend dev server
+      # - CORS_ORIGINS=http://localhost:5173
     restart: unless-stopped
     deploy:
       resources:

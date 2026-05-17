@@ -11,8 +11,6 @@ __pycache__/
 backend/static/
 
 # Work notes (local only)
-findings.md
-task_plan.md
-progress.md
+# findings.md, task_plan.md, progress.md moved to docs/
 tmp*/
 .venv/

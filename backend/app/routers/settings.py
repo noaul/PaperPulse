@@ -10,23 +10,48 @@ from ..schemas import AIConfig, EmailConfig, WebDAVConfig, WeKnoraConfig, Schedu
 from ..services.ai_analyzer import build_ai_request, DEFAULT_AI_CONFIG
 from ..services.email_sender import open_smtp_connection
 from ..services.weknora_client import WeKnoraClient
+from ..crypto import encrypt_value, decrypt_value
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+# Fields that should be encrypted at rest
+_SENSITIVE_FIELDS = {"api_key", "smtp_password", "password"}
+
+
+def _encrypt_sensitive(data: dict) -> dict:
+    """Encrypt sensitive fields before storing."""
+    result = dict(data)
+    for key in _SENSITIVE_FIELDS:
+        if key in result and result[key]:
+            result[key] = encrypt_value(result[key])
+    return result
+
+
+def _decrypt_sensitive(data: dict) -> dict:
+    """Decrypt sensitive fields after reading."""
+    result = dict(data)
+    for key in _SENSITIVE_FIELDS:
+        if key in result and result[key]:
+            result[key] = decrypt_value(result[key])
+    return result
 
 
 async def _get_setting(db: AsyncSession, key: str, default: dict) -> dict:
     result = await db.execute(select(Setting).where(Setting.key == key))
     row = result.scalar_one_or_none()
-    return json.loads(row.value) if row else default
+    if row:
+        return _decrypt_sensitive(json.loads(row.value))
+    return default
 
 
 async def _set_setting(db: AsyncSession, key: str, value: dict):
+    stored = _encrypt_sensitive(value)
     result = await db.execute(select(Setting).where(Setting.key == key))
     row = result.scalar_one_or_none()
     if row:
-        row.value = json.dumps(value, ensure_ascii=False)
+        row.value = json.dumps(stored, ensure_ascii=False)
     else:
-        db.add(Setting(key=key, value=json.dumps(value, ensure_ascii=False)))
+        db.add(Setting(key=key, value=json.dumps(stored, ensure_ascii=False)))
     await db.commit()
 
 
@@ -83,6 +108,12 @@ async def get_schedule_config(db: AsyncSession = Depends(get_db)):
 @router.put("/schedule")
 async def set_schedule_config(data: ScheduleConfig, db: AsyncSession = Depends(get_db)):
     await _set_setting(db, "schedule_config", data.model_dump())
+    # Hot-reload scheduler
+    from ..main import scheduler
+    try:
+        scheduler.reschedule_job("daily_job", trigger="cron", hour=data.cron_hour, minute=data.cron_minute)
+    except Exception:
+        pass
     return {"success": True}
 
 

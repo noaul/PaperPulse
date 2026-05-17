@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
@@ -16,6 +16,7 @@ from ..workflows.daily import (
     run_fetch_analyze_workflow_execution,
     run_send_report_workflow,
 )
+from ..rate_limit import limiter
 from typing import Optional
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -102,7 +103,9 @@ async def run_analysis(
 
 
 @router.post("/run-background")
+@limiter.limit("5/minute")
 async def run_analysis_background(
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     workspace: Workspace = Depends(get_current_workspace),
@@ -185,7 +188,9 @@ async def fetch_and_analyze(
 
 
 @router.post("/fetch-and-analyze-background")
+@limiter.limit("5/minute")
 async def fetch_and_analyze_background(
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     workspace: Workspace = Depends(get_current_workspace),

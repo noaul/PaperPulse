@@ -25,6 +25,7 @@ class Paper(Base):
     workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, default=1, index=True)
     feed_id = Column(Integer, ForeignKey("feeds.id", ondelete="CASCADE"))
     title = Column(String(1024), nullable=False)
+    title_hash = Column(String(64), index=True)  # SHA-256 of normalized title for dedup
     authors = Column(Text)
     abstract = Column(Text)
     doi = Column(String(512))
@@ -87,6 +88,7 @@ class AnalysisResult(Base):
     keyword_id = Column(Integer, ForeignKey("keywords.id", ondelete="CASCADE"))
     relevance_score = Column(Float, default=0)
     summary = Column(Text)
+    status = Column(String(20), default="success", index=True)  # success, failed, pending
     analyzed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     paper = relationship("Paper", back_populates="analyses")
     keyword = relationship("Keyword", back_populates="analyses")

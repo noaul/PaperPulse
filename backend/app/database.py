@@ -72,6 +72,8 @@ async def _ensure_compat_columns(conn) -> None:
     for table in workspace_tables:
         await _add_column_if_missing(conn, table, "workspace_id INTEGER NOT NULL DEFAULT 1")
     await _add_column_if_missing(conn, "reports", "topic_rule_id INTEGER")
+    await _add_column_if_missing(conn, "analysis_results", "status TEXT NOT NULL DEFAULT 'success'")
+    await _add_column_if_missing(conn, "papers", "title_hash TEXT")
 
     result = await conn.execute(text("SELECT COUNT(*) FROM workspaces"))
     if (result.scalar() or 0) == 0:

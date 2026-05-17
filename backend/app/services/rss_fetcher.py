@@ -1,4 +1,5 @@
 import feedparser
+import hashlib
 import html
 import json
 import re
@@ -130,7 +131,7 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
         link = normalize_paper_url(raw_link)
         title = clean_text(getattr(entry, "title", "Untitled")) or "Untitled"
 
-        # Deduplicate by DOI or URL
+        # Deduplicate by DOI or URL or title_hash
         if doi:
             existing = await db.execute(select(Paper).where(Paper.doi == doi, Paper.workspace_id == feed.workspace_id))
             if existing.scalar_one_or_none():
@@ -139,6 +140,15 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
             candidate_urls = {link, str(raw_link).strip()}
             existing = await db.execute(
                 select(Paper).where(Paper.url.in_(candidate_urls), Paper.workspace_id == feed.workspace_id)
+            )
+            if existing.scalar_one_or_none():
+                continue
+
+        # Title-based dedup for papers without DOI
+        t_hash = hashlib.sha256(title.lower().strip().encode()).hexdigest()
+        if not doi:
+            existing = await db.execute(
+                select(Paper).where(Paper.title_hash == t_hash, Paper.workspace_id == feed.workspace_id)
             )
             if existing.scalar_one_or_none():
                 continue
@@ -155,6 +165,7 @@ async def fetch_feed(db: AsyncSession, feed: Feed) -> list[Paper]:
             feed_id=feed.id,
             workspace_id=feed.workspace_id,
             title=title,
+            title_hash=t_hash,
             authors=authors,
             abstract=abstract,
             doi=doi or None,

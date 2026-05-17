@@ -123,20 +123,38 @@ def extract_json_object(content: str) -> dict:
         raise
 
 
+# Shared httpx client for connection pooling
+_http_client: httpx.AsyncClient | None = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=60)
+    return _http_client
+
+
+async def close_http_client() -> None:
+    global _http_client
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
+
+
 async def request_chat_completion(config: dict, messages: list[dict], max_tokens: int = 500) -> str:
     url, payload = build_ai_request(config, messages, max_tokens=max_tokens)
+    client = get_http_client()
     last_err = None
     for attempt in range(_AI_MAX_RETRIES + 1):
         try:
             async with _ai_semaphore:
-                async with httpx.AsyncClient(timeout=60) as client:
-                    resp = await client.post(
-                        url,
-                        headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json"},
-                        json=payload,
-                    )
-                    resp.raise_for_status()
-                    return extract_response_text(resp.json())
+                resp = await client.post(
+                    url,
+                    headers={"Authorization": f"Bearer {config['api_key']}", "Content-Type": "application/json"},
+                    json=payload,
+                )
+                resp.raise_for_status()
+                return extract_response_text(resp.json())
         except (httpx.HTTPStatusError, httpx.TimeoutException, ValueError) as e:
             last_err = e
             if attempt < _AI_MAX_RETRIES:
@@ -145,10 +163,14 @@ async def request_chat_completion(config: dict, messages: list[dict], max_tokens
 
 
 async def get_ai_config(db: AsyncSession) -> dict:
+    from ..crypto import decrypt_value
     result = await db.execute(select(Setting).where(Setting.key == "ai_config"))
     row = result.scalar_one_or_none()
     if row:
-        return json.loads(row.value)
+        config = json.loads(row.value)
+        if config.get("api_key"):
+            config["api_key"] = decrypt_value(config["api_key"])
+        return config
     return DEFAULT_AI_CONFIG.copy()
 
 
@@ -207,9 +229,18 @@ Respond ONLY with the JSON object, no markdown."""
         data = extract_json_object(content)
     except Exception as e:
         logger.error(f"AI analysis failed for paper '{paper.title}': {e}")
+        # Record failure for retry queue
+        ar = AnalysisResult(
+            paper_id=paper.id, keyword_id=keywords[0].id,
+            workspace_id=paper.workspace_id,
+            relevance_score=0, summary=f"分析失败: {str(e)[:200]}",
+            status="failed",
+        )
+        db.add(ar)
+        await db.commit()
         if raise_errors:
             raise RuntimeError(f"AI 分析失败：{paper.title[:80]} - {e}") from e
-        return []
+        return [ar]
 
     try:
         parsed = _AnalysisResponse.from_raw(data)
@@ -364,7 +395,7 @@ async def analyze_new_papers(
     if paper_ids is None:
         paper_ids = await get_latest_fetched_paper_ids(db, workspace_id=workspace_id)
 
-    analyzed_ids = select(AnalysisResult.paper_id).distinct()
+    analyzed_ids = select(AnalysisResult.paper_id).where(AnalysisResult.status == "success").distinct()
     if workspace_id is not None:
         analyzed_ids = analyzed_ids.where(AnalysisResult.workspace_id == workspace_id)
     paper_query = select(Paper).where(~Paper.id.in_(analyzed_ids))
@@ -401,24 +432,31 @@ async def analyze_new_papers(
         return []
 
     all_results = []
-    for paper in papers:
+    # Process papers in batches for efficiency
+    for i in range(0, len(papers), _BATCH_SIZE):
+        batch = papers[i:i + _BATCH_SIZE]
         if control_callback:
             await control_callback()
-        results = await analyze_paper(db, paper, keywords, config, raise_errors=raise_errors)
-        if control_callback:
-            await control_callback()
+
+        results = await analyze_papers_batch(db, batch, keywords, config, raise_errors=raise_errors)
         all_results.extend(results)
-        analyzed_count += 1
-        if any(r.relevance_score > 0 for r in results):
-            related_count += 1
+        analyzed_count += len(batch)
+
+        # Count related papers in this batch
+        batch_paper_ids = {p.id for p in batch}
+        for r in results:
+            if r.relevance_score > 0 and r.paper_id in batch_paper_ids:
+                related_count += 1
+                batch_paper_ids.discard(r.paper_id)
+
         if progress_callback:
             await progress_callback({
                 "analysis_total": total,
                 "analysis_analyzed": analyzed_count,
                 "analysis_related": related_count,
                 "analysis_results": len(all_results),
-                "analysis_current_title": paper.title,
+                "analysis_current_title": batch[-1].title,
             })
-        logger.info(f"Analyzed '{paper.title}': {len(results)} matches")
+        logger.info(f"Batch analyzed {len(batch)} papers: {len(results)} results")
 
     return all_results

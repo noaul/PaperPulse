@@ -16,9 +16,29 @@ from ..models import Setting
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "paperpulse-change-me-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.environ.get("JWT_EXPIRE_HOURS", "168"))  # 7 days
+
+
+def _resolve_jwt_secret() -> str:
+    """Auto-generate and persist a random JWT secret if using the insecure default."""
+    import secrets
+    env_val = os.environ.get("JWT_SECRET", "")
+    if env_val and env_val != "paperpulse-change-me-in-production":
+        return env_val
+    # Persist to data dir so it survives restarts
+    data_dir = os.path.dirname(os.environ.get("DB_PATH", "/app/data/paperpulse.db"))
+    secret_file = os.path.join(data_dir, ".jwt_secret")
+    if os.path.isfile(secret_file):
+        return open(secret_file).read().strip()
+    secret = secrets.token_urlsafe(32)
+    os.makedirs(data_dir, exist_ok=True)
+    with open(secret_file, "w") as f:
+        f.write(secret)
+    return secret
+
+
+JWT_SECRET = _resolve_jwt_secret()
 
 # Simple in-memory rate limiter for login attempts
 _login_attempts: dict[str, list[float]] = defaultdict(list)
@@ -138,6 +158,10 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     password_hash = _hash_password(req.password)
     await _save_admin_user(db, req.username, password_hash)
+
+    # Update cached state
+    from ..main import set_admin_registered
+    set_admin_registered(True)
 
     token = _create_token(req.username)
     return TokenResponse(token=token, username=req.username)
