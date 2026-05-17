@@ -133,8 +133,19 @@
     <!-- Workflow Executions -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="xl:col-span-2 xai-card">
-        <div class="flex items-center justify-between mb-4">
-          <p class="xai-eyebrow">WORKFLOW LOG</p>
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <button
+            type="button"
+            @click="workflowLogExpanded = !workflowLogExpanded"
+            class="min-w-0 flex items-center gap-3 text-left"
+            :aria-expanded="workflowLogExpanded"
+          >
+            <span class="xai-eyebrow">WORKFLOW LOG</span>
+            <span class="text-xs text-[var(--xai-mute)]">
+              {{ workflowLogExpanded ? '全部记录' : `最近 ${visibleExecutions.length} / ${executions.length}` }}
+            </span>
+            <span class="text-sm text-[var(--xai-mute)]" aria-hidden="true">{{ workflowLogExpanded ? '⌃' : '⌄' }}</span>
+          </button>
           <button @click="loadExecutions(true)" :disabled="executionsLoading" class="xai-btn text-xs">刷新</button>
         </div>
 
@@ -146,18 +157,18 @@
           暂无执行记录
         </div>
 
-        <div v-else class="space-y-2">
+        <div v-else class="space-y-2 overflow-y-auto pr-1" :class="workflowLogExpanded ? 'max-h-[30rem]' : 'max-h-[16rem]'">
           <button
-            v-for="execution in executions"
+            v-for="execution in visibleExecutions"
             :key="execution.id"
-            @click="loadExecutionDetail(execution.id)"
-            class="w-full text-left p-4 rounded-lg border transition-colors"
+            @click="selectExecution(execution.id)"
+            class="w-full text-left p-3 rounded-lg border transition-colors"
             :class="selectedExecution?.id === execution.id ? 'border-white/25 bg-[var(--xai-canvas-soft)]' : 'border-[var(--xai-hairline)] hover:border-white/15'"
           >
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-[var(--xai-ink)]">{{ workflowLabel(execution.workflow_name) }}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-sm text-[var(--xai-ink)] truncate">{{ workflowLabel(execution.workflow_name) }}</span>
                   <span :class="['xai-badge text-[11px]', statusBadgeClass(execution.status)]">
                     {{ statusText(execution.status) }}
                   </span>
@@ -171,11 +182,31 @@
               </div>
             </div>
           </button>
+          <button
+            v-if="executions.length > visibleExecutions.length"
+            type="button"
+            @click="workflowLogExpanded = true"
+            class="w-full text-center text-xs text-[var(--xai-mute)] hover:text-[var(--xai-ink)] py-2"
+          >
+            展开全部 {{ executions.length }} 条
+          </button>
         </div>
       </div>
 
       <div class="xai-card">
-        <p class="xai-eyebrow mb-4">DETAIL</p>
+        <button
+          type="button"
+          @click="workflowDetailExpanded = !workflowDetailExpanded"
+          :disabled="!selectedExecution && !detailLoading"
+          class="w-full flex items-center justify-between gap-3 text-left mb-4 disabled:cursor-default"
+          :aria-expanded="workflowDetailExpanded"
+        >
+          <span class="xai-eyebrow">DETAIL</span>
+          <span class="flex items-center gap-2 text-xs text-[var(--xai-mute)]">
+            <span v-if="selectedExecution">{{ workflowDetailExpanded ? '收起' : '展开' }}</span>
+            <span aria-hidden="true">{{ workflowDetailExpanded ? '⌃' : '⌄' }}</span>
+          </span>
+        </button>
 
         <div v-if="detailLoading" class="flex justify-center py-8">
           <div class="animate-spin rounded-full h-6 w-6 border-b border-white"></div>
@@ -186,38 +217,62 @@
         </div>
 
         <div v-else class="space-y-4">
-          <div class="rounded-lg border border-[var(--xai-hairline)] p-4">
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-[var(--xai-ink)]">{{ workflowLabel(selectedExecution.workflow_name) }}</span>
+          <div class="rounded-lg border border-[var(--xai-hairline)] p-3">
+            <div class="flex items-center justify-between gap-3">
+              <span class="min-w-0 text-sm text-[var(--xai-ink)] truncate">{{ workflowLabel(selectedExecution.workflow_name) }}</span>
               <span :class="['xai-badge text-[11px]', statusBadgeClass(selectedExecution.status)]">
                 {{ statusText(selectedExecution.status) }}
               </span>
             </div>
             <p class="text-xs text-[var(--xai-mute)] mt-2">{{ formatDateTime(selectedExecution.started_at) }}</p>
-            <p v-if="selectedExecution.error_message" class="text-xs text-[#fca5a5] mt-2">
+            <p class="text-xs text-[var(--xai-mute)] mt-1">
+              {{ selectedExecutionLogCount }} 条节点日志 · {{ formatDuration(selectedExecution.duration_ms) }}
+            </p>
+            <p v-if="selectedExecution.error_message" class="text-xs text-[#fca5a5] mt-2 break-words">
               {{ selectedExecution.error_message }}
             </p>
           </div>
 
-          <div>
-            <p class="xai-eyebrow mb-2">NODE LOG</p>
-            <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+          <div v-if="workflowDetailExpanded">
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <p class="xai-eyebrow">NODE LOG</p>
+              <button
+                v-if="selectedExecutionLogCount > collapsedNodeLogLimit"
+                type="button"
+                @click="nodeLogExpanded = !nodeLogExpanded"
+                class="text-xs text-[var(--xai-mute)] hover:text-[var(--xai-ink)]"
+              >
+                {{ nodeLogExpanded ? '收起' : `最近 ${visibleNodeLogs.length} 条` }}
+              </button>
+            </div>
+            <div v-if="selectedExecutionLogCount === 0" class="text-sm text-[var(--xai-mute)] py-4 text-center border border-[var(--xai-hairline)] rounded-lg">
+              暂无节点日志
+            </div>
+            <div v-else class="space-y-2 overflow-y-auto pr-1" :class="nodeLogExpanded ? 'max-h-96' : 'max-h-64'">
               <div
-                v-for="log in selectedExecution.logs"
+                v-for="log in visibleNodeLogs"
                 :key="log.id"
                 class="rounded-lg border border-[var(--xai-hairline)] p-3"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-xs text-[var(--xai-ink)]">{{ log.node_name }}</span>
+                  <span class="min-w-0 text-xs text-[var(--xai-ink)] truncate">{{ log.node_name }}</span>
                   <span :class="['xai-badge text-[11px]', logLevelClass(log.level)]">
                     {{ log.level }}
                   </span>
                 </div>
-                <p class="text-sm text-[var(--xai-body)] mt-1">{{ log.message }}</p>
+                <p class="text-sm text-[var(--xai-body)] mt-1 break-words">{{ log.message }}</p>
                 <p class="text-[11px] text-[var(--xai-mute)] mt-1">{{ formatDateTime(log.created_at) }}</p>
               </div>
             </div>
           </div>
+          <button
+            v-else
+            type="button"
+            @click="workflowDetailExpanded = true"
+            class="w-full text-center text-xs text-[var(--xai-mute)] hover:text-[var(--xai-ink)] py-2"
+          >
+            展开查看节点日志
+          </button>
         </div>
       </div>
     </div>
@@ -285,6 +340,11 @@ const actionLoading = ref(false)
 const controlLoading = ref(false)
 const chartData = ref<any>(null)
 const reanalyzeDays = ref(1)
+const workflowLogExpanded = ref(false)
+const workflowDetailExpanded = ref(false)
+const nodeLogExpanded = ref(false)
+const collapsedExecutionLimit = 3
+const collapsedNodeLogLimit = 4
 let progressTimer: ReturnType<typeof setInterval> | null = null
 
 const chartMax = computed(() => {
@@ -337,6 +397,19 @@ const analysisProgressPercent = computed(() => {
     return analysisProgressExecution.value?.status === 'success' ? 100 : 0
   }
   return Math.min(100, Math.round((analyzed / total) * 100))
+})
+
+const visibleExecutions = computed(() => {
+  if (workflowLogExpanded.value) return executions.value
+  return executions.value.slice(0, collapsedExecutionLimit)
+})
+
+const selectedExecutionLogCount = computed(() => selectedExecution.value?.logs.length || 0)
+
+const visibleNodeLogs = computed(() => {
+  const logs = selectedExecution.value?.logs || []
+  if (nodeLogExpanded.value) return logs
+  return logs.slice(-collapsedNodeLogLimit)
 })
 
 const analysisRunning = computed(() => {
@@ -442,9 +515,11 @@ async function loadExecutions(selectFirst = false) {
     const { data } = await executionApi.list({ limit: 8 })
     executions.value = data
     if (selectFirst && data.length > 0) {
-      await loadExecutionDetail(data[0].id)
+      await loadExecutionDetail(data[0].id, true, false)
     } else if (selectedExecution.value && !data.some((item) => item.id === selectedExecution.value?.id)) {
       selectedExecution.value = null
+      workflowDetailExpanded.value = false
+      nodeLogExpanded.value = false
     }
   } catch (err: any) {
     appStore.error('加载执行记录失败: ' + err.message)
@@ -453,11 +528,18 @@ async function loadExecutions(selectFirst = false) {
   }
 }
 
-async function loadExecutionDetail(id: number, silent = false) {
+async function loadExecutionDetail(id: number, silent = false, openDetail = true) {
   if (!silent) detailLoading.value = true
   try {
     const { data } = await executionApi.get(id)
+    const previousId = selectedExecution.value?.id
     selectedExecution.value = data
+    if (previousId !== data.id) {
+      nodeLogExpanded.value = false
+    }
+    if (openDetail) {
+      workflowDetailExpanded.value = true
+    }
     if (hasAnalysisProgress(data.summary)) {
       activeAnalysisExecution.value = data
       if (data.status === 'running' || data.status === 'paused') {
@@ -469,6 +551,10 @@ async function loadExecutionDetail(id: number, silent = false) {
   } finally {
     if (!silent) detailLoading.value = false
   }
+}
+
+async function selectExecution(id: number) {
+  await loadExecutionDetail(id, false, true)
 }
 
 function stopProgressPolling() {
