@@ -38,7 +38,7 @@
 #### Docker（推荐）
 
 ```bash
-git clone https://github.com/uovme/PaperPulse.git
+git clone https://github.com/noaul/PaperPulse.git
 cd PaperPulse
 docker compose up -d
 # 访问 http://localhost:18095
@@ -150,7 +150,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-xpi.ps1
 ### Quick Start
 
 ```bash
-git clone https://github.com/uovme/PaperPulse.git
+git clone https://github.com/noaul/PaperPulse.git
 cd PaperPulse
 docker compose up -d
 # Open http://localhost:18095
