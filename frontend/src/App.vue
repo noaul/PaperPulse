@@ -47,7 +47,9 @@
               title="新建工作区"
               @click="createWorkspace"
             >
-              +
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5" />
+              </svg>
             </button>
             <button
               class="rounded-lg border border-[var(--xai-hairline)] px-2 py-2 text-xs text-[#fca5a5] hover:border-[rgba(239,68,68,0.4)]"
@@ -55,7 +57,9 @@
               @click="deleteWorkspace"
               v-if="workspaceStore.currentWorkspace && !workspaceStore.currentWorkspace.is_default"
             >
-              ✕
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
@@ -65,7 +69,9 @@
           title="新建工作区"
           @click="createWorkspace"
         >
-          +
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5" />
+          </svg>
         </button>
       </div>
 
@@ -114,14 +120,25 @@
             <span class="block truncate xai-eyebrow">ACCOUNT</span>
             <span class="mt-1 block truncate text-sm text-[var(--xai-ink)]">{{ appStore.authUsername }}</span>
           </span>
-          <span v-if="!appStore.sidebarCollapsed" class="paper-account-chevron">⌄</span>
+          <span v-if="!appStore.sidebarCollapsed" class="paper-account-chevron">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
         </button>
         <button
           class="paper-side-action"
           title="收起侧边栏"
           @click="appStore.toggleSidebar"
         >
-          <span class="paper-side-nav-mark">{{ appStore.sidebarCollapsed ? '›' : '‹' }}</span>
+          <span class="paper-side-nav-mark">
+            <svg v-if="appStore.sidebarCollapsed" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18 6-6-6-6" />
+            </svg>
+            <svg v-else class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15 18-6-6 6-6" />
+            </svg>
+          </span>
           <span v-if="!appStore.sidebarCollapsed">收起侧边栏</span>
         </button>
       </div>
@@ -164,7 +181,11 @@
             <p class="xai-eyebrow">ABOUT</p>
             <h2 id="paper-about-title" class="mt-2 text-xl font-semibold text-[var(--xai-ink)]">PaperPulse</h2>
           </div>
-          <button class="paper-about-close" type="button" title="关闭" @click="closeAbout">×</button>
+          <button class="paper-about-close" type="button" title="关闭" @click="closeAbout">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <p class="mt-4 text-sm leading-6 text-[var(--xai-body)]">
           PaperPulse 是一个学术论文追踪工具，用于订阅期刊 RSS、执行 AI 文献分析、整理分析报告并通过邮件推送。
@@ -176,7 +197,7 @@
           </div>
           <div class="paper-about-meta">
             <span>项目</span>
-            <strong>uovme/PaperPulse</strong>
+            <strong>noaul/PaperPulse</strong>
           </div>
         </div>
       </section>

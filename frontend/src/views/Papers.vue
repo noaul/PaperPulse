@@ -1,116 +1,115 @@
 <template>
   <div class="space-y-6">
-    <!-- Search and Filters -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-      <div class="flex flex-wrap gap-4">
-        <!-- Search -->
-        <div class="flex-1 min-w-[200px]">
+    <div class="paper-filter-panel">
+      <div class="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_11rem_10rem_10rem]">
+        <label class="paper-field">
+          <span class="paper-field-label">搜索</span>
           <div class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="paper-input-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               v-model="filters.search"
               type="text"
               placeholder="搜索论文标题、作者..."
-              class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              class="w-full pl-10 pr-4 py-2.5 text-sm"
               @input="debouncedSearch"
             />
           </div>
-        </div>
+        </label>
 
-        <!-- Journal Filter -->
-        <select
-          v-model="filters.journal"
-          @change="loadPapers(1)"
-          class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-        >
-          <option value="">全部期刊</option>
-          <option v-for="j in journals" :key="j" :value="j">{{ j }}</option>
-        </select>
+        <label class="paper-field">
+          <span class="paper-field-label">期刊</span>
+          <select
+            v-model="filters.journal"
+            class="w-full px-3 py-2.5 text-sm"
+            @change="loadPapers(1)"
+          >
+            <option value="">全部期刊</option>
+            <option v-for="j in journals" :key="j" :value="j">{{ j }}</option>
+          </select>
+        </label>
 
-        <!-- Keyword Filter -->
-        <input
-          v-model="filters.keyword"
-          type="text"
-          placeholder="关键词筛选..."
-          class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm w-40"
-          @input="debouncedSearch"
-        />
+        <label class="paper-field">
+          <span class="paper-field-label">关键词</span>
+          <input
+            v-model="filters.keyword"
+            type="text"
+            placeholder="关键词筛选..."
+            class="w-full px-3 py-2.5 text-sm"
+            @input="debouncedSearch"
+          />
+        </label>
 
-        <!-- Min Relevance -->
-        <select
-          v-model.number="filters.min_relevance"
-          @change="loadPapers(1)"
-          class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-        >
-          <option :value="0">全部评分</option>
-          <option :value="7">≥ 7 高相关</option>
-          <option :value="5">≥ 5 中相关</option>
-          <option :value="3">≥ 3 低相关</option>
-        </select>
+        <label class="paper-field">
+          <span class="paper-field-label">评分</span>
+          <select
+            v-model.number="filters.min_relevance"
+            class="w-full px-3 py-2.5 text-sm"
+            @change="loadPapers(1)"
+          >
+            <option :value="0">全部评分</option>
+            <option :value="7">≥ 7 高相关</option>
+            <option :value="5">≥ 5 中相关</option>
+            <option :value="3">≥ 3 低相关</option>
+          </select>
+        </label>
       </div>
     </div>
 
-    <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-[var(--xai-accent-breeze)]"></div>
     </div>
 
-    <!-- Paper List -->
     <div v-else-if="papers.length > 0" class="space-y-3">
-      <div
+      <article
         v-for="paper in papers"
         :key="paper.id"
-        class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
+        class="paper-list-card"
       >
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <h3
-              class="text-base font-semibold text-gray-900 cursor-pointer hover:text-blue-600 leading-6"
-              @click="toggleExpand(paper)"
-            >
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0 flex-1">
+            <h3 class="paper-list-title cursor-pointer" @click="toggleExpand(paper)">
               {{ paper.title }}
             </h3>
-            <p class="text-sm text-gray-500 mt-1">
+            <p class="mt-1 text-sm text-[var(--xai-mute)]">
               {{ paper.authors }}
             </p>
-            <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
-              <span class="inline-flex items-center">
-                <svg class="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="paper-meta-row mt-3">
+              <span class="paper-meta-item">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
                 </svg>
                 {{ paper.journal_name }}
               </span>
-              <span class="inline-flex items-center">
-                <svg class="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span class="paper-meta-item">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 {{ paper.published_at }}
               </span>
             </div>
-            <p class="text-sm text-gray-600 mt-2 line-clamp-2">
+            <p class="mt-3 line-clamp-2 text-sm leading-6 text-[var(--xai-body)]">
               {{ paper.abstract }}
             </p>
 
-            <!-- Expanded Detail -->
-            <div v-if="expandedId === paper.id" class="mt-4 pt-4 border-t border-gray-100 space-y-3">
+            <div v-if="expandedId === paper.id" class="paper-detail-panel space-y-3">
               <div>
-                <h4 class="text-sm font-medium text-gray-700 mb-1">完整摘要</h4>
-                <p class="text-sm text-gray-600">{{ paper.abstract }}</p>
+                <h4 class="mb-1 text-sm font-medium text-[var(--xai-ink)]">完整摘要</h4>
+                <p class="text-sm leading-6 text-[var(--xai-body)]">{{ paper.abstract }}</p>
               </div>
-              <div v-if="paper.analysis_summary">
-                <h4 class="text-sm font-medium text-gray-700 mb-1">AI 分析摘要</h4>
-                <p class="text-sm text-gray-600">{{ paper.analysis_summary }}</p>
+              <div v-if="paper.analysis_summary" class="paper-note-block">
+                <h4 class="mb-1 text-sm font-medium text-[var(--xai-accent-breeze)]">AI 分析摘要</h4>
+                <p class="text-sm leading-6 text-[var(--xai-body)]">{{ paper.analysis_summary }}</p>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <a
                   v-if="paper.doi"
                   :href="`https://doi.org/${paper.doi}`"
                   target="_blank"
-                  class="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                  class="inline-flex items-center text-sm text-[var(--xai-accent-breeze)] hover:text-[var(--xai-ink)]"
                 >
-                  <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg class="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   DOI: {{ paper.doi }}
@@ -119,7 +118,7 @@
                   v-if="paper.url"
                   :href="paper.url"
                   target="_blank"
-                  class="inline-flex items-center text-sm text-gray-600 hover:text-gray-800"
+                  class="inline-flex items-center text-sm text-[var(--xai-body)] hover:text-[var(--xai-ink)]"
                 >
                   原文链接 →
                 </a>
@@ -127,60 +126,52 @@
             </div>
           </div>
 
-          <!-- Score Badge -->
           <span
             :class="[
-              'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium flex-shrink-0',
+              'xai-badge flex-shrink-0 justify-center text-sm sm:min-w-[4.5rem]',
               scoreBadgeClass(paper.relevance_score),
             ]"
           >
             {{ formatScore(paper.relevance_score) }}
           </span>
         </div>
-      </div>
+      </article>
     </div>
 
-    <!-- Empty State -->
-    <div v-else class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-      <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div v-else class="paper-empty-state">
+      <svg class="mx-auto mb-4 h-12 w-12 text-[var(--xai-mute)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
-      <p class="text-gray-500">暂无论文数据</p>
+      <p class="text-sm text-[var(--xai-mute)]">暂无论文数据</p>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="totalPages > 1" class="flex items-center justify-center space-x-2">
+    <div v-if="totalPages > 1" class="paper-pagination">
       <button
-        @click="loadPapers(currentPage - 1)"
+        class="paper-page-button disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="currentPage <= 1"
-        class="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        @click="loadPapers(currentPage - 1)"
       >
         上一页
       </button>
       <template v-for="page in paginationRange" :key="page">
         <button
           v-if="page !== '...'"
+          :class="['paper-page-button', page === currentPage ? 'paper-page-button-active' : '']"
           @click="loadPapers(page as number)"
-          :class="[
-            'px-3 py-1.5 text-sm rounded-lg border',
-            page === currentPage
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50',
-          ]"
         >
           {{ page }}
         </button>
-        <span v-else class="px-2 text-gray-400">...</span>
+        <span v-else class="px-2 text-[var(--xai-mute)]">...</span>
       </template>
       <button
-        @click="loadPapers(currentPage + 1)"
+        class="paper-page-button disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="currentPage >= totalPages"
-        class="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        @click="loadPapers(currentPage + 1)"
       >
         下一页
       </button>
-      <span class="text-sm text-gray-500 ml-4">
+      <span class="ml-2 text-sm text-[var(--xai-mute)]">
         共 {{ totalPapers }} 篇
       </span>
     </div>

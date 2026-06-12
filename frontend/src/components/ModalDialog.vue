@@ -7,7 +7,11 @@
             <p class="xai-eyebrow">{{ eyebrow }}</p>
             <h2 class="mt-2 text-lg font-semibold text-[var(--xai-ink)]">{{ title }}</h2>
           </div>
-          <button class="paper-about-close" type="button" title="关闭" @click="onCancel">×</button>
+          <button class="paper-about-close" type="button" title="关闭" @click="onCancel">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <p v-if="message" class="mt-3 text-sm leading-6 text-[var(--xai-body)]">{{ message }}</p>
         <div v-if="type === 'prompt'" class="mt-4">
