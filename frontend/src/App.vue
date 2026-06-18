@@ -1,7 +1,7 @@
 <template>
   <router-view v-if="!appStore.isLoggedIn" />
 
-  <div v-else class="paper-shell flex h-screen overflow-hidden">
+  <div v-else class="paper-shell flex min-h-[100dvh] overflow-hidden">
     <aside :class="['paper-sidebar flex flex-col', appStore.sidebarCollapsed ? 'w-[72px]' : 'w-[240px]']">
       <div class="flex h-16 items-center gap-3 px-4">
         <router-link to="/dashboard" class="flex min-w-0 flex-1 items-center gap-3">
@@ -30,7 +30,7 @@
               class="h-2 w-2 rounded-full"
               :style="{ backgroundColor: workspaceStore.currentWorkspace.color || '#ffffff' }"
             ></span>
-            WORKSPACE
+            工作区
           </div>
           <div class="flex gap-2">
             <select
@@ -43,7 +43,7 @@
               </option>
             </select>
             <button
-              class="rounded-lg border border-[var(--xai-hairline)] px-3 py-2 text-sm text-[var(--xai-mute)] hover:text-[var(--xai-ink)] hover:border-white/25"
+              class="rounded-lg border border-[var(--xai-hairline)] px-3 py-2 text-sm text-[var(--xai-mute)] hover:border-[rgba(36,84,230,0.35)] hover:text-[var(--xai-primary)]"
               title="新建工作区"
               @click="createWorkspace"
             >
@@ -52,7 +52,7 @@
               </svg>
             </button>
             <button
-              class="rounded-lg border border-[var(--xai-hairline)] px-2 py-2 text-xs text-[#fca5a5] hover:border-[rgba(239,68,68,0.4)]"
+              class="rounded-lg border border-[var(--xai-hairline)] px-2 py-2 text-xs text-[var(--xai-danger)] hover:border-[rgba(207,46,60,0.4)]"
               title="删除当前工作区"
               @click="deleteWorkspace"
               v-if="workspaceStore.currentWorkspace && !workspaceStore.currentWorkspace.is_default"
@@ -117,7 +117,7 @@
         >
           <span class="paper-account-avatar">{{ accountInitial }}</span>
           <span v-if="!appStore.sidebarCollapsed" class="min-w-0 flex-1 text-left">
-            <span class="block truncate xai-eyebrow">ACCOUNT</span>
+            <span class="block truncate xai-eyebrow">账户</span>
             <span class="mt-1 block truncate text-sm text-[var(--xai-ink)]">{{ appStore.authUsername }}</span>
           </span>
           <span v-if="!appStore.sidebarCollapsed" class="paper-account-chevron">
@@ -145,9 +145,10 @@
     </aside>
 
     <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="paper-mainbar flex h-14 flex-shrink-0 items-center justify-between px-6">
+      <header class="paper-mainbar flex h-16 flex-shrink-0 items-center justify-between px-6">
         <div>
-          <h1 class="text-base font-normal tracking-tight text-[var(--xai-ink)]">{{ currentTitle }}</h1>
+          <h1 class="text-base font-semibold tracking-tight text-[var(--xai-ink)]">{{ currentTitle }}</h1>
+          <p class="mt-0.5 text-xs text-[var(--xai-mute)]">{{ currentSubtitle }}</p>
         </div>
       </header>
 
@@ -178,7 +179,7 @@
       <section class="paper-about-dialog" role="dialog" aria-modal="true" aria-labelledby="paper-about-title">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="xai-eyebrow">ABOUT</p>
+            <p class="xai-eyebrow">关于</p>
             <h2 id="paper-about-title" class="mt-2 text-xl font-semibold text-[var(--xai-ink)]">PaperPulse</h2>
           </div>
           <button class="paper-about-close" type="button" title="关闭" @click="closeAbout">
@@ -206,7 +207,7 @@
     <ModalDialog
       :visible="createWsOpen"
       type="prompt"
-      eyebrow="WORKSPACE"
+      eyebrow="工作区"
       title="新建工作区"
       placeholder="请输入工作区名称"
       confirm-text="创建"
@@ -217,7 +218,7 @@
     <ModalDialog
       :visible="deleteWsOpen"
       type="confirm"
-      eyebrow="WORKSPACE"
+      eyebrow="工作区"
       :title="`删除工作区「${workspaceStore.currentWorkspace?.name}」`"
       message="该操作不可恢复，工作区内的所有数据将被清除。"
       confirm-text="确认删除"
@@ -246,17 +247,30 @@ const createWsOpen = ref(false)
 const deleteWsOpen = ref(false)
 
 const currentTitle = computed(() => (route.meta.title as string) || 'PaperPulse')
+const currentSubtitle = computed(() => {
+  const subtitles: Record<string, string> = {
+    '/dashboard': '查看抓取、分析、邮件和备份工作流的实时状态',
+    '/papers': '筛选论文、展开摘要并检查相关性评分',
+    '/analysis': '复盘 AI 分析结果并加入阅读队列',
+    '/reports': '生成、预览、下载和重发每日文献报告',
+    '/feeds': '管理期刊 RSS 订阅源和批量刷新',
+    '/email-topics': '按主题规则组织工作区邮件推送',
+    '/reading-queue': '整理需要稍后精读的论文和外部文章',
+    '/settings': '配置 AI、邮件、同步和定时任务',
+  }
+  return subtitles[route.path] || 'PaperPulse literature operations workspace'
+})
 const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorkspaceId || 'default'}`)
 const accountInitial = computed(() => (appStore.authUsername || 'P').trim().slice(0, 1).toUpperCase())
 
 const navItems = [
-  { path: '/dashboard', label: '仪表盘', mark: 'D', featured: true },
-  { path: '/papers', label: '论文', mark: 'P', featured: true },
-  { path: '/analysis', label: '分析结果', mark: 'A', featured: true },
-  { path: '/reports', label: '报告', mark: 'R', featured: true },
-  { path: '/feeds', label: '订阅源', mark: 'F', featured: true },
-  { path: '/email-topics', label: '邮件主题', mark: 'M', featured: true },
-  { path: '/reading-queue', label: '阅读队列', mark: 'Q', featured: true },
+  { path: '/dashboard', label: '仪表盘', mark: '仪', featured: true },
+  { path: '/papers', label: '论文', mark: '论', featured: true },
+  { path: '/analysis', label: '分析结果', mark: '析', featured: true },
+  { path: '/reports', label: '报告', mark: '报', featured: true },
+  { path: '/feeds', label: '订阅源', mark: '源', featured: true },
+  { path: '/email-topics', label: '邮件主题', mark: '邮', featured: true },
+  { path: '/reading-queue', label: '阅读队列', mark: '读', featured: true },
 ]
 
 function isActive(path: string): boolean {
@@ -334,9 +348,9 @@ onMounted(() => {
 })
 
 const toastClasses: Record<string, string> = {
-  success: 'bg-[var(--xai-canvas-card)] border-[rgba(34,197,94,0.4)] text-[#86efac]',
-  error: 'bg-[var(--xai-canvas-card)] border-[rgba(239,68,68,0.4)] text-[#fca5a5]',
-  info: 'bg-[var(--xai-canvas-card)] border-[rgba(160,195,236,0.4)] text-[var(--xai-accent-breeze)]',
-  warning: 'bg-[var(--xai-canvas-card)] border-[rgba(245,158,11,0.4)] text-[#fcd34d]',
+  success: 'bg-[#f0fdf7] border-[#b9eadb] text-[#116346] shadow-lg shadow-slate-900/10',
+  error: 'bg-[#fff1f2] border-[#ffc2c8] text-[#a71f2b] shadow-lg shadow-slate-900/10',
+  info: 'bg-[#f3f7ff] border-[#cbd8ff] text-[var(--xai-primary)] shadow-lg shadow-slate-900/10',
+  warning: 'bg-[#fff8e8] border-[#f4d399] text-[#8a4c00] shadow-lg shadow-slate-900/10',
 }
 </script>

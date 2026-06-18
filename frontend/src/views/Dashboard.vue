@@ -10,7 +10,7 @@
 
     <!-- Quick Actions -->
     <div class="xai-card">
-      <p class="xai-eyebrow mb-4">QUICK ACTIONS</p>
+      <p class="xai-eyebrow mb-4">快捷操作</p>
       <div class="flex flex-wrap gap-3">
         <button @click="fetchAll" :disabled="actionLoading || analysisRunning" class="xai-btn">
           抓取全部订阅
@@ -34,7 +34,7 @@
     <div v-if="analysisProgressExecution" class="xai-card">
       <div class="flex items-center justify-between gap-4 mb-4">
         <div>
-          <p class="xai-eyebrow mb-1">ANALYSIS PROGRESS</p>
+          <p class="xai-eyebrow mb-1">分析进度</p>
           <p class="text-sm text-[var(--xai-mute)]">
             {{ workflowLabel(analysisProgressExecution.workflow_name) }} · {{ statusText(analysisProgressExecution.status) }}
           </p>
@@ -68,15 +68,15 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <div class="rounded-lg border border-[var(--xai-hairline)] p-4">
-          <p class="xai-eyebrow">ANALYZED</p>
+          <p class="xai-eyebrow">已分析</p>
           <p class="text-2xl mt-1 tracking-tight">{{ analysisProgress.analyzed }} / {{ analysisProgress.total }}</p>
         </div>
         <div class="rounded-lg border border-[var(--xai-hairline)] p-4">
-          <p class="xai-eyebrow">RELATED</p>
+          <p class="xai-eyebrow">相关论文</p>
           <p class="text-2xl mt-1 tracking-tight">{{ analysisProgress.related }}</p>
         </div>
         <div class="rounded-lg border border-[var(--xai-hairline)] p-4">
-          <p class="xai-eyebrow">RESULTS</p>
+          <p class="xai-eyebrow">分析结果</p>
           <p class="text-2xl mt-1 tracking-tight">{{ analysisProgress.results }}</p>
         </div>
       </div>
@@ -95,7 +95,7 @@
     <!-- Chart: Daily Stats -->
     <div class="xai-card">
       <div class="flex items-center justify-between mb-4">
-        <p class="xai-eyebrow">TRENDS</p>
+        <p class="xai-eyebrow">趋势</p>
         <div class="flex items-center gap-2">
           <select v-model.number="reanalyzeDays" class="text-sm bg-[var(--xai-canvas-soft)] border-[var(--xai-hairline)] rounded-lg px-2 py-1">
             <option :value="1">1天</option>
@@ -108,17 +108,17 @@
       </div>
       <div v-if="chartData" class="space-y-4">
         <div class="grid grid-cols-4 gap-3 text-center text-xs text-[var(--xai-mute)] mb-2">
-          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-white"></span>每日新增</span>
-          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[var(--xai-accent-dusk)]"></span>每日分析</span>
-          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[var(--xai-success)]"></span>相关论文</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[var(--xai-primary)]"></span>每日新增</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[#515bd8]"></span>每日分析</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[#16805f]"></span>相关论文</span>
           <span class="flex items-center gap-1"><span class="w-3 h-1 rounded bg-[var(--xai-canvas-mid)]"></span>累计总量</span>
         </div>
         <div class="h-40 flex items-end gap-px">
           <div v-for="(d, i) in chartData.dates" :key="d" class="flex-1 flex flex-col items-center gap-0.5 group relative">
             <div class="w-full flex flex-col justify-end h-32 gap-px">
-              <div class="bg-white rounded-t-sm" :style="{ height: barH(chartData.daily_new_papers[i], chartMax) }"></div>
-              <div class="bg-[#7c3aed]" :style="{ height: barH(chartData.daily_analyses[i], chartMax) }"></div>
-              <div class="bg-[#22c55e] rounded-b-sm" :style="{ height: barH(chartData.daily_related_papers[i], chartMax) }"></div>
+              <div class="bg-[var(--xai-primary)] rounded-t-sm" :style="{ height: barH(chartData.daily_new_papers[i], chartMax) }"></div>
+              <div class="bg-[#515bd8]" :style="{ height: barH(chartData.daily_analyses[i], chartMax) }"></div>
+              <div class="bg-[#16805f] rounded-b-sm" :style="{ height: barH(chartData.daily_related_papers[i], chartMax) }"></div>
             </div>
             <span class="text-[9px] text-[var(--xai-mute)] rotate-[-45deg] origin-top-left mt-1 hidden lg:block">{{ d.slice(5) }}</span>
             <div class="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--xai-canvas-soft)] border border-[var(--xai-hairline)] text-[var(--xai-ink)] text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
@@ -140,7 +140,7 @@
             class="min-w-0 flex items-center gap-3 text-left"
             :aria-expanded="workflowLogExpanded"
           >
-            <span class="xai-eyebrow">WORKFLOW LOG</span>
+            <span class="xai-eyebrow">工作流记录</span>
             <span class="text-xs text-[var(--xai-mute)]">
               {{ workflowLogExpanded ? '全部记录' : `最近 ${visibleExecutions.length} / ${executions.length}` }}
             </span>
@@ -150,7 +150,7 @@
         </div>
 
         <div v-if="executionsLoading" class="flex justify-center py-8">
-          <div class="animate-spin rounded-full h-6 w-6 border-b border-white"></div>
+          <div class="animate-spin rounded-full h-6 w-6 border-b border-[var(--xai-primary)]"></div>
         </div>
 
         <div v-else-if="executions.length === 0" class="text-center py-8 text-[var(--xai-mute)]">
@@ -163,7 +163,7 @@
             :key="execution.id"
             @click="selectExecution(execution.id)"
             class="w-full text-left p-3 rounded-lg border transition-colors"
-            :class="selectedExecution?.id === execution.id ? 'border-white/25 bg-[var(--xai-canvas-soft)]' : 'border-[var(--xai-hairline)] hover:border-white/15'"
+            :class="selectedExecution?.id === execution.id ? 'border-[rgba(36,84,230,0.32)] bg-[var(--xai-primary-soft)]' : 'border-[var(--xai-hairline)] hover:border-[rgba(36,84,230,0.24)]'"
           >
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0">
@@ -201,7 +201,7 @@
           class="w-full flex items-center justify-between gap-3 text-left mb-4 disabled:cursor-default"
           :aria-expanded="workflowDetailExpanded"
         >
-          <span class="xai-eyebrow">DETAIL</span>
+          <span class="xai-eyebrow">执行详情</span>
           <span class="flex items-center gap-2 text-xs text-[var(--xai-mute)]">
             <span v-if="selectedExecution">{{ workflowDetailExpanded ? '收起' : '展开' }}</span>
             <span aria-hidden="true">{{ workflowDetailExpanded ? '⌃' : '⌄' }}</span>
@@ -209,7 +209,7 @@
         </button>
 
         <div v-if="detailLoading" class="flex justify-center py-8">
-          <div class="animate-spin rounded-full h-6 w-6 border-b border-white"></div>
+          <div class="animate-spin rounded-full h-6 w-6 border-b border-[var(--xai-primary)]"></div>
         </div>
 
         <div v-else-if="!selectedExecution" class="text-sm text-[var(--xai-mute)] py-8 text-center">
@@ -235,7 +235,7 @@
 
           <div v-if="workflowDetailExpanded">
             <div class="flex items-center justify-between gap-3 mb-2">
-              <p class="xai-eyebrow">NODE LOG</p>
+              <p class="xai-eyebrow">节点日志</p>
               <button
                 v-if="selectedExecutionLogCount > collapsedNodeLogLimit"
                 type="button"
@@ -280,12 +280,12 @@
     <!-- Recent High-Relevance Papers -->
     <div class="xai-card">
       <div class="flex items-center justify-between mb-4">
-        <p class="xai-eyebrow">HIGH RELEVANCE</p>
+        <p class="xai-eyebrow">高相关论文</p>
         <router-link to="/papers" class="xai-btn text-xs">查看全部 →</router-link>
       </div>
 
       <div v-if="papersLoading" class="flex justify-center py-8">
-        <div class="animate-spin rounded-full h-6 w-6 border-b border-white"></div>
+        <div class="animate-spin rounded-full h-6 w-6 border-b border-[var(--xai-primary)]"></div>
       </div>
 
       <div v-else-if="recentPapers.length === 0" class="text-center py-8 text-[var(--xai-mute)]">
@@ -296,7 +296,7 @@
         <div
           v-for="paper in recentPapers"
           :key="paper.id"
-          class="flex items-center justify-between p-4 rounded-lg border border-[var(--xai-hairline)] hover:border-white/15 transition-colors"
+          class="flex items-center justify-between p-4 rounded-lg border border-[var(--xai-hairline)] hover:border-[rgba(36,84,230,0.24)] transition-colors"
         >
           <div class="flex-1 min-w-0 mr-4">
             <h3 class="text-sm text-[var(--xai-ink)] truncate">{{ paper.title }}</h3>
@@ -363,11 +363,11 @@ function barH(val: number, max: number) {
 }
 
 const statsCards = computed(() => [
-  { label: 'FEEDS', value: stats.value.total_feeds },
-  { label: 'PAPERS', value: stats.value.total_papers },
-  { label: 'TODAY NEW', value: stats.value.today_papers },
-  { label: 'TODAY ANALYZED', value: stats.value.today_analyses },
-  { label: 'TODAY RELATED', value: stats.value.high_relevance_today },
+  { label: '订阅源', value: stats.value.total_feeds },
+  { label: '论文总数', value: stats.value.total_papers },
+  { label: '今日新增', value: stats.value.today_papers },
+  { label: '今日分析', value: stats.value.today_analyses },
+  { label: '高相关', value: stats.value.high_relevance_today },
 ])
 
 const analysisProgressExecution = computed(() => {

@@ -25,7 +25,7 @@
         </div>
         <div class="mt-5 flex justify-end gap-3">
           <button
-            class="rounded-lg border border-[var(--xai-hairline)] px-4 py-2 text-sm text-[var(--xai-mute)] hover:text-[var(--xai-ink)] hover:border-white/25"
+            class="rounded-lg border border-[var(--xai-hairline)] px-4 py-2 text-sm text-[var(--xai-mute)] hover:border-[rgba(36,84,230,0.35)] hover:text-[var(--xai-primary)]"
             @click="onCancel"
           >
             取消
@@ -34,7 +34,7 @@
             :class="[
               'rounded-lg px-4 py-2 text-sm font-medium',
               danger
-                ? 'bg-red-600/20 border border-red-500/40 text-[#fca5a5] hover:bg-red-600/30'
+                ? 'bg-red-50 border border-red-200 text-[var(--xai-danger)] hover:bg-red-100'
                 : 'bg-[var(--xai-accent-breeze)]/15 border border-[var(--xai-accent-breeze)]/40 text-[var(--xai-accent-breeze)] hover:bg-[var(--xai-accent-breeze)]/25'
             ]"
             @click="onConfirm"

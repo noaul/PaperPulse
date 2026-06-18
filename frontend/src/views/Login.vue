@@ -1,5 +1,5 @@
 <template>
-  <div class="paper-login-scene min-h-screen flex items-center justify-center px-4">
+  <div class="paper-login-scene flex min-h-[100dvh] items-center justify-center px-4">
     <div class="w-full max-w-md">
       <!-- Logo -->
       <div class="text-center mb-8">
