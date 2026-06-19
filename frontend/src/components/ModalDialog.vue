@@ -25,17 +25,17 @@
         </div>
         <div class="mt-5 flex justify-end gap-3">
           <button
-            class="rounded-lg border border-[var(--xai-hairline)] px-4 py-2 text-sm text-[var(--xai-mute)] hover:border-[rgba(36,84,230,0.35)] hover:text-[var(--xai-primary)]"
+            class="xai-btn"
             @click="onCancel"
           >
             取消
           </button>
           <button
             :class="[
-              'rounded-lg px-4 py-2 text-sm font-medium',
+              'xai-btn',
               danger
-                ? 'bg-red-50 border border-red-200 text-[var(--xai-danger)] hover:bg-red-100'
-                : 'bg-[var(--xai-accent-breeze)]/15 border border-[var(--xai-accent-breeze)]/40 text-[var(--xai-accent-breeze)] hover:bg-[var(--xai-accent-breeze)]/25'
+                ? 'xai-btn-danger'
+                : 'xai-btn-primary'
             ]"
             @click="onConfirm"
           >

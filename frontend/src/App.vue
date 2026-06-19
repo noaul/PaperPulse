@@ -2,10 +2,10 @@
   <router-view v-if="!appStore.isLoggedIn" />
 
   <div v-else class="paper-shell flex min-h-[100dvh] overflow-hidden">
-    <aside :class="['paper-sidebar flex flex-col', appStore.sidebarCollapsed ? 'w-[72px]' : 'w-[240px]']">
+    <aside :class="['paper-sidebar flex flex-col', appStore.sidebarCollapsed ? 'w-[76px]' : 'w-64']">
       <div class="flex h-16 items-center gap-3 px-4">
         <router-link to="/dashboard" class="flex min-w-0 flex-1 items-center gap-3">
-          <div class="paper-logo-mark flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full">
+          <div class="paper-logo-mark flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 stroke-linecap="round"
@@ -19,6 +19,7 @@
             <div class="paper-brand-word truncate" aria-label="PaperPulse">
               <span class="paper-brand-accent">P</span>aper<span class="paper-brand-accent">P</span>ulse
             </div>
+            <div class="paper-brand-subtitle truncate">research operations</div>
           </div>
         </router-link>
       </div>
@@ -86,7 +87,8 @@
           <span :class="['paper-side-nav-mark', item.featured ? 'paper-side-nav-mark-featured' : '']">
             {{ item.mark }}
           </span>
-          <span v-if="!appStore.sidebarCollapsed" class="truncate">{{ item.label }}</span>
+          <span v-if="!appStore.sidebarCollapsed" class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+          <span v-if="!appStore.sidebarCollapsed" class="paper-side-nav-hint hidden lg:inline">{{ item.hint }}</span>
         </router-link>
       </nav>
 
@@ -145,15 +147,21 @@
     </aside>
 
     <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="paper-mainbar flex h-16 flex-shrink-0 items-center justify-between px-6">
+      <header class="paper-mainbar flex min-h-16 flex-shrink-0 items-center justify-between gap-4 px-4 py-2 sm:px-6">
         <div>
           <h1 class="text-base font-semibold tracking-tight text-[var(--xai-ink)]">{{ currentTitle }}</h1>
           <p class="mt-0.5 text-xs text-[var(--xai-mute)]">{{ currentSubtitle }}</p>
         </div>
       </header>
 
-      <div class="paper-content flex-1 overflow-y-auto p-5 lg:p-6">
-        <router-view :key="pageKey" />
+      <div class="paper-content flex-1 overflow-y-auto px-4 pb-6 pt-3 sm:px-6 lg:pb-7 lg:pt-4">
+        <div class="mx-auto max-w-7xl">
+          <router-view v-slot="{ Component }">
+            <transition name="paper-route" mode="out-in">
+              <component :is="Component" :key="pageKey" />
+            </transition>
+          </router-view>
+        </div>
       </div>
     </main>
 
@@ -264,13 +272,13 @@ const pageKey = computed(() => `${route.fullPath}:${workspaceStore.currentWorksp
 const accountInitial = computed(() => (appStore.authUsername || 'P').trim().slice(0, 1).toUpperCase())
 
 const navItems = [
-  { path: '/dashboard', label: '仪表盘', mark: '仪', featured: true },
-  { path: '/papers', label: '论文', mark: '论', featured: true },
-  { path: '/analysis', label: '分析结果', mark: '析', featured: true },
-  { path: '/reports', label: '报告', mark: '报', featured: true },
-  { path: '/feeds', label: '订阅源', mark: '源', featured: true },
-  { path: '/email-topics', label: '邮件主题', mark: '邮', featured: true },
-  { path: '/reading-queue', label: '阅读队列', mark: '读', featured: true },
+  { path: '/dashboard', label: '仪表盘', mark: '仪', hint: 'Overview', featured: true },
+  { path: '/papers', label: '论文', mark: '论', hint: 'Papers', featured: true },
+  { path: '/analysis', label: '分析结果', mark: '析', hint: 'AI', featured: true },
+  { path: '/reports', label: '报告', mark: '报', hint: 'Reports', featured: true },
+  { path: '/feeds', label: '订阅源', mark: '源', hint: 'RSS', featured: true },
+  { path: '/email-topics', label: '邮件主题', mark: '邮', hint: 'Mail', featured: true },
+  { path: '/reading-queue', label: '阅读队列', mark: '读', hint: 'Queue', featured: true },
 ]
 
 function isActive(path: string): boolean {
@@ -348,9 +356,9 @@ onMounted(() => {
 })
 
 const toastClasses: Record<string, string> = {
-  success: 'bg-[#f0fdf7] border-[#b9eadb] text-[#116346] shadow-lg shadow-slate-900/10',
-  error: 'bg-[#fff1f2] border-[#ffc2c8] text-[#a71f2b] shadow-lg shadow-slate-900/10',
-  info: 'bg-[#f3f7ff] border-[#cbd8ff] text-[var(--xai-primary)] shadow-lg shadow-slate-900/10',
-  warning: 'bg-[#fff8e8] border-[#f4d399] text-[#8a4c00] shadow-lg shadow-slate-900/10',
+  success: 'bg-[rgba(16,185,129,0.12)] border-[rgba(16,185,129,0.28)] text-[#6ee7b7] shadow-2xl shadow-black/30 backdrop-blur-xl',
+  error: 'bg-[rgba(244,63,94,0.12)] border-[rgba(244,63,94,0.28)] text-[#fda4af] shadow-2xl shadow-black/30 backdrop-blur-xl',
+  info: 'bg-[rgba(59,130,246,0.12)] border-[rgba(59,130,246,0.30)] text-[#93c5fd] shadow-2xl shadow-black/30 backdrop-blur-xl',
+  warning: 'bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.30)] text-[#fcd34d] shadow-2xl shadow-black/30 backdrop-blur-xl',
 }
 </script>
